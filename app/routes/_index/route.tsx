@@ -48,58 +48,14 @@ export default function LoginPage() {
         </div>
 
         <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8, color: "#111" }}>
-          Impression DPD
+          Impression DPD (by Jojo)
         </h1>
 
         <p style={{ fontSize: 14, color: "#666", marginBottom: 32, lineHeight: 1.6 }}>
           Cette application a été développée exclusivement pour la boutique{" "}
-          <strong>Livedeco.com</strong>.
+          <strong><a href="https://www.livedeco.com/" target="_blank">Livedeco.com</a></strong>
         </p>
 
-        <Form method="get">
-          <div style={{ marginBottom: 16, textAlign: "left" }}>
-            <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6, color: "#333" }}>
-              Domaine de la boutique
-            </label>
-            <input
-              type="text"
-              name="shop"
-              placeholder="livedeco.com"
-              style={{
-                width: "100%",
-                padding: "10px 14px",
-                border: "1px solid #ddd",
-                borderRadius: 6,
-                fontSize: 14,
-                boxSizing: "border-box",
-                outline: "none",
-              }}
-            />
-          </div>
-
-          {actionData?.error && (
-            <p style={{ color: "#dc0032", fontSize: 13, marginBottom: 12 }}>
-              {actionData.error}
-            </p>
-          )}
-
-          <button
-            type="submit"
-            style={{
-              width: "100%",
-              background: "#dc0032",
-              color: "white",
-              border: "none",
-              borderRadius: 6,
-              padding: "12px",
-              fontSize: 15,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            Connexion
-          </button>
-        </Form>
       </div>
 
       {/* Footer */}
