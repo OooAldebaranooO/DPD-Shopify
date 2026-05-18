@@ -2,7 +2,7 @@
 
 client_id = "79d5e7599bdd1d792722832e24cdc6fc"
 name = "Impression DPD"
-application_url = "https://breezy-spies-wear.loca.lt"
+application_url = "https://dpd-shopify-oken.vercel.app"
 embedded = true
 
 [build]
@@ -16,7 +16,7 @@ api_version = "2026-07"
 scopes = "write_products,write_metaobjects,write_metaobject_definitions"
 
 [auth]
-redirect_urls = [ "https://breezy-spies-wear.loca.lt/api/auth" ]
+redirect_urls = [ "https://dpd-shopify-oken.vercel.app/api/auth" ]
 
 [product.metafields.app.demo_info]
 type = "single_line_text_field"
