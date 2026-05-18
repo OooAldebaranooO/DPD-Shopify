@@ -7,7 +7,7 @@ uid = "5abf31d8-5e8b-6736-8548-5b846ed75732e8a40ab9"
 
 # Only 1 target can be specified for each admin print action extension
 [[extensions.targeting]]
-module = "./src/PrintActionExtension.jsx"
+module = "./src/PrintActionExtension.tsx"
 target = "admin.order-details.print-action.render"
 
 # Valid extension targets:
