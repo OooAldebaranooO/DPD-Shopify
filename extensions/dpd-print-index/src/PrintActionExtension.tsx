@@ -75,7 +75,7 @@ function Extension() {
         <s-stack direction="block" gap="base">
           <s-text>Impression DPD</s-text>
           <s-text>{orderSummary}</s-text>
-          <s-text>Impression étiquette by Jojo</s-text>
+          <s-text>Impression d'étiquettes by Jojo</s-text>
         </s-stack>
       </s-box>
     </s-admin-print-action>

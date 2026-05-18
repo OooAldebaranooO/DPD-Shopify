@@ -104,7 +104,7 @@ function Extension() {
           )}
 
           <s-text>-------------------</s-text><br></br>
-          <s-text>Impression étiquette by Jojo</s-text>
+          <s-text>Impression d'étiquettes by Jojo</s-text>
         </s-stack>
       </s-box>
     </s-admin-print-action>

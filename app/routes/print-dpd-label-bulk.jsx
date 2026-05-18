@@ -91,7 +91,7 @@ export async function loader({ request }) {
       <div class="label">
         ${isMock ? `<div class="mock-banner">⚠️ Aperçu mock — Configuration DPD manquante</div>` : ""}
         <div class="top">
-          <div class="brand">DPD</div>
+          <img src="https://dpd-shopify-oken.vercel.app/dpd-logo.png" alt="DPD" style="height: 40px;" />
           <div class="badge">COLIS ${label.index} / ${label.total}</div>
         </div>
         <div class="section">
