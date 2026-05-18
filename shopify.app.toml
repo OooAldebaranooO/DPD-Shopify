@@ -3,7 +3,7 @@
 client_id = "79d5e7599bdd1d792722832e24cdc6fc"
 name = "Impression DPD"
 application_url = "https://dpd-shopify-oken.vercel.app"
-embedded = false
+embedded = true
 
 [build]
 automatically_update_urls_on_dev = false
