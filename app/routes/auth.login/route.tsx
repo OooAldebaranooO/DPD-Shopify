@@ -5,7 +5,20 @@ import { login } from "../../shopify.server";
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   if (url.searchParams.get("shop")) {
-    throw await login(request);
+    const loginUrl = await login(request).catch((response) => response);
+    if (loginUrl instanceof Response) {
+      const location = loginUrl.headers.get("Location");
+      if (location) {
+        return new Response(
+          `<html><head><script>window.top.location.href = ${JSON.stringify(location)};</script></head></html>`,
+          {
+            status: 200,
+            headers: { "Content-Type": "text/html" },
+          }
+        );
+      }
+    }
+    throw loginUrl;
   }
   return null;
 };
