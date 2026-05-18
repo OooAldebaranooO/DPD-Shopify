@@ -79,7 +79,7 @@ function Extension() {
 
       const shop = shopify.config?.shop || "";
       const url =
-        `https://localhost:3458/print-dpd-label?orderName=${encodeURIComponent(orderName)}` +
+        `https://dpd-shopify-oken.vercel.app/print-dpd-label?orderName=${encodeURIComponent(orderName)}` +
         `&count=${labelCount}` +
         `&shop=${encodeURIComponent(shop)}`;
 
