@@ -73,7 +73,7 @@ export default function LoginPage() {
           <strong>Livedeco.com</strong>.
         </p>
 
-        <Form method="get">
+        <form method="get" action="/auth/login">
           <div style={{ marginBottom: 16, textAlign: "left" }}>
             <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6, color: "#333" }}>
               Domaine de la boutique
