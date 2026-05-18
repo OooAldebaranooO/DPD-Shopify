@@ -1,5 +1,18 @@
 import db from "../db.server";
 
+export async function action({ request }) {
+  if (request.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "*",
+      },
+    });
+  }
+}
+
 export async function loader({ request }) {
   const url = new URL(request.url);
   const orderName = url.searchParams.get("orderName") || "Commande";
@@ -87,6 +100,8 @@ export async function loader({ request }) {
     headers: {
       "Content-Type": "text/html; charset=utf-8",
       "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Headers": "*",
       "X-Frame-Options": "ALLOWALL",
       "Content-Security-Policy": "frame-ancestors *",
     },
