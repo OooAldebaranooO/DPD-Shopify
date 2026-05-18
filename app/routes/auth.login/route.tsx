@@ -10,6 +10,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return null;
 };
 
+export const headers = () => ({
+  "Content-Security-Policy": "frame-ancestors https://admin.shopify.com https://*.myshopify.com",
+});
+
 export default function LoginPage() {
   const actionData = useActionData<{ error?: string }>();
 
