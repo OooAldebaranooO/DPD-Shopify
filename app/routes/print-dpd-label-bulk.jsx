@@ -15,7 +15,7 @@ export async function action({ request }) {
 
 export async function loader({ request }) {
   const url = new URL(request.url);
-  const ids = (url.searchParams.get("ids") || "").split(",").filter(Boolean);
+  const ordersParam = url.searchParams.get("orders") || "";
   const shop = url.searchParams.get("shop") || "";
 
   let config = null;
@@ -25,19 +25,28 @@ export async function loader({ request }) {
 
   const isMock = !config?.login;
 
-  // Pour chaque commande, on génère une section d'étiquettes
-  // En mode mock on génère juste 1 étiquette par commande
-  const orders = ids.map((id, index) => ({
-    id,
-    name: `Commande-${index + 1}`,
-    count: 1,
-  }));
+  // Parse "orderName:count,orderName:count,..."
+  const orders = ordersParam.split(",").filter(Boolean).map((part) => {
+    const lastColon = part.lastIndexOf(":");
+    const name = decodeURIComponent(part.substring(0, lastColon));
+    const count = parseInt(part.substring(lastColon + 1)) || 1;
+    return { name, count };
+  });
+
+  // Génère une page par colis
+  const labels = orders.flatMap((order) =>
+    Array.from({ length: order.count }, (_, i) => ({
+      orderName: order.name,
+      index: i + 1,
+      total: order.count,
+    }))
+  );
 
   const html = `<!DOCTYPE html>
 <html lang="fr">
   <head>
     <meta charset="utf-8" />
-    <title>Étiquettes DPD — ${orders.length} commande(s)</title>
+    <title>Étiquettes DPD</title>
     <style>
       @page { size: A4; margin: 10mm; }
       body { margin: 0; font-family: Arial, sans-serif; color: #111; }
@@ -78,17 +87,17 @@ export async function loader({ request }) {
     </style>
   </head>
   <body>
-    ${orders.map((order) => `
+    ${labels.map((label) => `
       <div class="label">
         ${isMock ? `<div class="mock-banner">⚠️ Aperçu mock — Configuration DPD manquante</div>` : ""}
         <div class="top">
           <div class="brand">DPD</div>
-          <div class="badge">COLIS 1 / 1</div>
+          <div class="badge">COLIS ${label.index} / ${label.total}</div>
         </div>
         <div class="section">
           <div class="title">Référence commande</div>
           <div class="box">
-            <div class="ref">${order.name}</div>
+            <div class="ref">${label.orderName}</div>
           </div>
         </div>
         <div class="section">
@@ -96,7 +105,7 @@ export async function loader({ request }) {
           <div class="box">${config ? `${config.senderName} - ${config.senderAddress} ${config.senderZip} ${config.senderCity}` : "À configurer dans Configuration DPD"}</div>
         </div>
         <div class="barcode">CODE BARRES DPD À VENIR</div>
-        <div class="footer">ID: ${order.id}</div>
+        <div class="footer">Colis ${label.index} sur ${label.total}</div>
       </div>
     `).join("")}
   </body>

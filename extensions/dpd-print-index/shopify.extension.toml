@@ -1,15 +1,14 @@
 api_version = "2025-10"
 [[extensions]]
-name = "dpd-print-from-order"
-handle = "dpd-print-from-order"
+name = "dpd-print-index"
+handle = "dpd-print-index"
 type = "ui_extension"
-uid = "5abf31d8-5e8b-6736-8548-5b846ed75732e8a40ab9"
+uid = "e5201313-ac38-701c-a47d-676c67e4f26c2e4bc045"
 
 # Only 1 target can be specified for each admin print action extension
-
 [[extensions.targeting]]
 module = "./src/PrintActionExtension.tsx"
-target = "admin.order-details.print-action.render"
+target = "admin.order-index.selection-print-action.render"
 
 # Valid extension targets:
 
