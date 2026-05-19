@@ -1,34 +1,40 @@
-declare const shopify: {
-  data: {
-    selected?: Array<{ id: string }>;
-  };
-  query: (query: string, options?: { variables?: Record<string, unknown> }) => Promise<{
-    data?: {
-      nodes?: Array<{
-        __typename: string;
-        id?: string;
-        name?: string;
-        lineItems?: {
-          edges: Array<{
-            node: {
-              quantity: number;
-              name: string;
-            };
-          }>;
-        };
-      }>;
-    };
-  }>;
-  config?: {
-    shop?: string;
-  };
-};
+import { JSX as PreactJSX } from "preact";
 
-declare namespace JSX {
-  interface IntrinsicElements {
-    "s-admin-print-action": { src?: string; children?: any };
-    "s-box": { children?: any };
-    "s-stack": { direction?: string; gap?: string; children?: any };
-    "s-text": { tone?: string; children?: any };
+declare global {
+  const shopify: {
+    data: {
+      selected?: Array<{ id: string }>;
+    };
+    query: (query: string, options?: { variables?: Record<string, unknown> }) => Promise<{
+      data?: {
+        nodes?: Array<{
+          __typename: string;
+          id?: string;
+          name?: string;
+          lineItems?: {
+            edges: Array<{
+              node: {
+                quantity: number;
+                name: string;
+              };
+            }>;
+          };
+        }>;
+      };
+    }>;
+    config?: {
+      shop?: string;
+    };
+  };
+}
+
+declare module "preact" {
+  namespace JSX {
+    interface IntrinsicElements {
+      "s-admin-print-action": PreactJSX.HTMLAttributes<HTMLElement> & { src?: string };
+      "s-box": PreactJSX.HTMLAttributes<HTMLElement>;
+      "s-stack": PreactJSX.HTMLAttributes<HTMLElement> & { direction?: string; gap?: string };
+      "s-text": PreactJSX.HTMLAttributes<HTMLElement> & { tone?: string };
+    }
   }
 }

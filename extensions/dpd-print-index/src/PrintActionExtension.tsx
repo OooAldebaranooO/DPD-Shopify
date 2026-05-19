@@ -73,9 +73,9 @@ function Extension() {
     <s-admin-print-action src={printUrl || undefined}>
       <s-box>
         <s-stack direction="block" gap="base">
-          <s-text>Impression DPD</s-text>
+          <s-text>Impression DPD by Jojo</s-text>
           <s-text>{orderSummary}</s-text>
-          <s-text>Impression d'étiquettes by Jojo</s-text>
+          <s-text>Impression d'étiquettes DPD by Jojo</s-text>
         </s-stack>
       </s-box>
     </s-admin-print-action>
