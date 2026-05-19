@@ -4,17 +4,8 @@ declare global {
   var prismaGlobal: PrismaClient;
 }
 
-const createPrismaClient = () => new PrismaClient({
-  datasources: {
-    db: {
-      url: process.env.DATABASE_URL,
-    },
-  },
-  log: ["error"],
-});
-
 if (!global.prismaGlobal) {
-  global.prismaGlobal = createPrismaClient();
+  global.prismaGlobal = new PrismaClient();
 }
 
 const prisma = global.prismaGlobal;
