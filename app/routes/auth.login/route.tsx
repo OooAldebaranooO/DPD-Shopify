@@ -116,7 +116,7 @@ export default function LoginPage() {
           >
             Connexion
           </button>
-        </Form>
+        </form>
       </div>
 
       {/* Footer */}
