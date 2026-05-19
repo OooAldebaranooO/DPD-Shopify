@@ -29,6 +29,7 @@ function Extension() {
                 id
                 name
                 shippingAddress {
+                  name
                   firstName
                   lastName
                   address1
