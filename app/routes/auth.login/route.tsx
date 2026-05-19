@@ -5,8 +5,15 @@ import { login } from "../../shopify.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
-  if (url.searchParams.get("shop")) {
-    throw await login(request);
+  const shop = url.searchParams.get("shop");
+  
+  if (shop) {
+    // On construit l'URL OAuth manuellement et on redirige via window.top
+    const authUrl = `https://dpd-shopify-oken.vercel.app/auth/login?shop=${encodeURIComponent(shop)}&embedded=0`;
+    return new Response(
+      `<html><head><script>if(window.top !== window.self){ window.top.location.href = ${JSON.stringify(authUrl)}; } else { window.location.href = ${JSON.stringify(authUrl)}; }</script></head></html>`,
+      { status: 200, headers: { "Content-Type": "text/html" } }
+    );
   }
   return null;
 };
