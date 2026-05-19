@@ -1,5 +1,3 @@
-import db from "../db.server";
-
 export async function action({ request }) {
   if (request.method === "OPTIONS") {
     return new Response(null, {
@@ -16,16 +14,17 @@ export async function action({ request }) {
 export async function loader({ request }) {
   const url = new URL(request.url);
   const ordersParam = url.searchParams.get("orders") || "";
-  const shop = url.searchParams.get("shop") || "";
 
-  let config = null;
-  if (shop) {
-    config = await db.dpdConfig.findUnique({ where: { shop } });
-  }
+  const config = {
+    login: process.env.DPD_LOGIN,
+    senderName: process.env.DPD_SENDER_NAME,
+    senderAddress: process.env.DPD_SENDER_ADDRESS,
+    senderZip: process.env.DPD_SENDER_ZIP,
+    senderCity: process.env.DPD_SENDER_CITY,
+  };
 
-  const isMock = !config?.login;
+  const isMock = !config.login;
 
-  // Parse "orderName:count,orderName:count,..."
   const orders = ordersParam.split(",").filter(Boolean).map((part) => {
     const lastColon = part.lastIndexOf(":");
     const name = decodeURIComponent(part.substring(0, lastColon));
@@ -33,7 +32,6 @@ export async function loader({ request }) {
     return { name, count };
   });
 
-  // Génère une page par colis
   const labels = orders.flatMap((order) =>
     Array.from({ length: order.count }, (_, i) => ({
       orderName: order.name,
@@ -59,7 +57,7 @@ export async function loader({ request }) {
       }
       .label:last-child { page-break-after: auto; }
       .top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; }
-      .brand { font-size: 28px; font-weight: 700; color: #dc0032; }
+      .logo { height: 40px; }
       .badge { border: 1px solid #222; padding: 6px 10px; font-size: 14px; font-weight: 700; }
       .section { margin-bottom: 18px; }
       .title { font-size: 13px; font-weight: 700; text-transform: uppercase; margin-bottom: 6px; }
@@ -91,7 +89,7 @@ export async function loader({ request }) {
       <div class="label">
         ${isMock ? `<div class="mock-banner">⚠️ Aperçu mock — Configuration DPD manquante</div>` : ""}
         <div class="top">
-          <img src="https://dpd-shopify-oken.vercel.app/dpd-logo.png" alt="DPD" style="height: 40px;" />
+          <img src="https://dpd-shopify-oken.vercel.app/dpd-logo.png" alt="DPD" class="logo" />
           <div class="badge">COLIS ${label.index} / ${label.total}</div>
         </div>
         <div class="section">
@@ -102,7 +100,7 @@ export async function loader({ request }) {
         </div>
         <div class="section">
           <div class="title">Expéditeur</div>
-          <div class="box">${config ? `${config.senderName} - ${config.senderAddress} ${config.senderZip} ${config.senderCity}` : "À configurer dans Configuration DPD"}</div>
+          <div class="box">${config.login ? `${config.senderName} - ${config.senderAddress} ${config.senderZip} ${config.senderCity}` : "À configurer"}</div>
         </div>
         <div class="barcode">CODE BARRES DPD À VENIR</div>
         <div class="footer">Colis ${label.index} sur ${label.total}</div>
