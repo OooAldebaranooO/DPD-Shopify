@@ -35,7 +35,7 @@ export default function Index() {
         </s-paragraph>
         <s-paragraph>
           © 2026 - Tous droits réservés
-        </s-parameter>
+        </s-paragraph>
       </s-section>
     </s-page>
   );
