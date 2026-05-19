@@ -55,6 +55,7 @@ function renderLabels(labels, config) {
 <head>
   <meta charset="utf-8" />
   <title>Étiquettes DPD</title>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
   <style>
     @page { size: A6 landscape; margin: 0; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -348,15 +349,28 @@ function renderLabels(labels, config) {
       </div>
 
       <div class="barcode-bottom">
-        <div class="barcode-lines">
-          ${bars.map(b => `<div class="bar" style="height:${b.h}mm;width:${b.w}px;"></div>`).join("")}
-        </div>
+        <svg class="barcode" 
+          jsbarcode-value="${displayTrack.replace(/\s/g, '')}"
+          jsbarcode-format="CODE128"
+          jsbarcode-width="2"
+          jsbarcode-height="50"
+          jsbarcode-displayvalue="true"
+          jsbarcode-fontsize="10"
+          jsbarcode-margin="5">
+        </svg>
         <div class="barcode-text">
           ${new Date().toLocaleDateString("fr-FR")} ${new Date().toLocaleTimeString("fr-FR")} · EPrintWebservice · ${orderName} · Colis ${index}/${total}
         </div>
       </div>
     </div>`;
   }).join("")}
+
+  <script>
+    JsBarcode(".barcode").init();
+    window.onbeforeprint = function() {
+      JsBarcode(".barcode").init();
+    };
+  </script>
 </body>
 </html>`;
 }
