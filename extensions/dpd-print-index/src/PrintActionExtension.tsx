@@ -42,7 +42,6 @@ function Extension() {
         (n: any) => n.__typename === "Order"
       );
 
-      // Construit les paramètres : orderName:count,orderName:count,...
       const params = orders.map((o: any) => {
         const count = (o.lineItems?.edges || []).reduce(
           (sum: number, e: any) => sum + (e?.node?.quantity || 0), 0
@@ -73,9 +72,10 @@ function Extension() {
     <s-admin-print-action src={printUrl || undefined}>
       <s-box>
         <s-stack direction="block" gap="base">
-          <s-text>Impression DPD by Jojo</s-text>
+          <s-text>Impression des étiquettes</s-text>
           <s-text>{orderSummary}</s-text>
-          <s-text>Impression d'étiquettes DPD by Jojo</s-text>
+          <s-text>-------------------</s-text>
+          <s-text>Impression d'étiquettes by Jojo</s-text>
         </s-stack>
       </s-box>
     </s-admin-print-action>

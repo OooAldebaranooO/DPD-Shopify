@@ -8,19 +8,16 @@ export default function () {
 function Extension() {
   const {data} = shopify;
 
-  const [rawId, setRawId] = useState(null);
-  const [orderName, setOrderName] = useState(null);
-  const [labelCount, setLabelCount] = useState(null);
-  const [printUrl, setPrintUrl] = useState(null);
-  const [error, setError] = useState(null);
+  const [orderName, setOrderName] = useState<string | null>(null);
+  const [labelCount, setLabelCount] = useState<number | null>(null);
+  const [printUrl, setPrintUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadOrder() {
       try {
         setError(null);
-
         const orderId = data?.selected?.[0]?.id || null;
-        setRawId(orderId);
 
         if (!orderId) {
           setError("Aucun ID de commande reçu.");
@@ -45,11 +42,7 @@ function Extension() {
               }
             }
           }`,
-          {
-            variables: {
-              ids: [orderId],
-            },
-          },
+          { variables: { ids: [orderId] } },
         );
 
         const order = result?.data?.nodes?.[0];
@@ -63,7 +56,7 @@ function Extension() {
           return sum + (item?.node?.quantity || 0);
         }, 0);
 
-        setOrderName(order.name);
+        setOrderName(order.name || null);
         setLabelCount(total);
       } catch (e) {
         console.error(e);
@@ -74,23 +67,23 @@ function Extension() {
     loadOrder();
   }, [data]);
 
-    useEffect(() => {
-      if (!orderName || !labelCount) return;
+  useEffect(() => {
+    if (!orderName || !labelCount) return;
 
-      const shop = shopify.config?.shop || "";
-      const url =
-        `https://dpd-shopify-oken.vercel.app/print-dpd-label?orderName=${encodeURIComponent(orderName)}` +
-        `&count=${labelCount}` +
-        `&shop=${encodeURIComponent(shop)}`;
+    const shop = shopify.config?.shop || "";
+    const url =
+      `https://dpd-shopify-oken.vercel.app/print-dpd-label?orderName=${encodeURIComponent(orderName)}` +
+      `&count=${labelCount}` +
+      `&shop=${encodeURIComponent(shop)}`;
 
-      setPrintUrl(url);
-    }, [orderName, labelCount]);
+    setPrintUrl(url);
+  }, [orderName, labelCount]);
 
   return (
     <s-admin-print-action src={printUrl || undefined}>
       <s-box>
         <s-stack direction="block" gap="base">
-          <s-text>Impression du BL</s-text>
+          <s-text>Impression des étiquettes</s-text>
 
           {error ? (
             <s-text tone="critical">{error}</s-text>
@@ -99,11 +92,11 @@ function Extension() {
           ) : (
             <>
               <s-text>N° de commande : {orderName}</s-text>
-              <s-text>Nombre d’étiquettes à imprimer : {labelCount}</s-text>
+              <s-text>Nombre d'étiquettes à imprimer : {labelCount}</s-text>
             </>
           )}
 
-          <s-text>-------------------</s-text><br></br>
+          <s-text>-------------------</s-text>
           <s-text>Impression d'étiquettes by Jojo</s-text>
         </s-stack>
       </s-box>
