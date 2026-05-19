@@ -350,7 +350,7 @@ function renderLabels(labels, config) {
 
       <div class="barcode-bottom">
         <svg class="barcode" 
-          jsbarcode-value="${displayTrack.replace(/\s/g, '')}"
+          jsbarcode-value="${fakeTrack.replace(/\s/g, '')}"
           jsbarcode-format="CODE128"
           jsbarcode-width="2"
           jsbarcode-height="50"
