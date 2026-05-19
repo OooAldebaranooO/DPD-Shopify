@@ -13,7 +13,7 @@ function Extension() {
   const [printUrl, setPrintUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+    useEffect(() => {
     async function loadOrder() {
       try {
         setError(null);
@@ -59,14 +59,54 @@ function Extension() {
           { variables: { ids: [orderId] } },
         );
 
+        console.log('GraphQL result', JSON.stringify(result, null, 2));
+
         const order = result?.data?.nodes?.[0] as any;
         if (!order || order.__typename !== "Order") {
           setError("Impossible de charger la commande."); return;
         }
 
         const items = order.lineItems?.edges || [];
-        const total = items.reduce((sum: number, item: any) =>
-          sum + (item?.node?.quantity || 0), 0);
+
+        // Nombre total d’étiquettes (ce que tu faisais déjà)
+        const totalLabels = items.reduce((sum: number, item: any) =>
+          sum + (item?.node?.quantity || 0), 0,
+        );
+
+        // Calcul du poids total en grammes
+        const totalWeightGrams = items.reduce((sum: number, item: any) => {
+          const node = item?.node;
+          if (!node) return sum;
+
+          const qty = node.quantity ?? 0;
+          const weight = node.variant?.inventoryItem?.measurement?.weight;
+          if (!weight || weight.value == null) {
+            // Pas de poids configuré → on ignore ou on peut mettre un default
+            return sum;
+          }
+
+          let weightInGrams = weight.value as number;
+
+          switch (weight.unit) {
+            case 'KILOGRAMS':
+              weightInGrams = weight.value * 1000;
+              break;
+            case 'POUNDS':
+              weightInGrams = weight.value * 453.592;
+              break;
+            case 'OUNCES':
+              weightInGrams = weight.value * 28.3495;
+              break;
+            // GRAMS ou autre → on laisse tel quel
+            default:
+              break;
+          }
+
+          return sum + qty * weightInGrams;
+        }, 0);
+
+        // Si DPD attend des kilos avec un nombre à virgule :
+        const totalWeightKg = totalWeightGrams / 1000;
 
         const addr = order.shippingAddress;
         const destName = addr
@@ -74,17 +114,17 @@ function Extension() {
           : "";
 
         setOrderName(order.name || null);
-        setLabelCount(total);
+        setLabelCount(totalLabels);
 
         const url = `https://dpd-shopify-oken.vercel.app/print-dpd-label` +
           `?orderName=${encodeURIComponent(order.name ?? "")}` +
-          `&count=${total}` +
+          `&count=${totalLabels}` +
           `&destName=${encodeURIComponent(destName)}` +
           `&destAddress=${encodeURIComponent(addr?.address1 || "")}` +
           `&destZip=${encodeURIComponent(addr?.zip || "")}` +
           `&destCity=${encodeURIComponent(addr?.city || "")}` +
           `&destPhone=${encodeURIComponent(addr?.phone || "")}` +
-          `&weight=0`;
+          `&weight=${encodeURIComponent(String(totalWeightKg))}`;
 
         setPrintUrl(url);
       } catch (e) {
