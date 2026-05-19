@@ -26,8 +26,8 @@ export default function Index() {
       </s-section>
       <s-section slot="aside" heading="Informations">
         <s-paragraph>Application développée exclusivement pour Livedeco.com</s-paragraph>
-        <s-paragraph>Johan Vauche-Forot — contact@johanvf.pro</s-paragraph>
-        <s-paragraph>© 2026 — Tous droits réservés</s-paragraph>
+        <s-paragraph>Johan Vauche-Forot - contact@johanvf.pro</s-paragraph>
+        <s-paragraph>© 2026 - Tous droits réservés</s-paragraph>
       </s-section>
     </s-page>
   );
