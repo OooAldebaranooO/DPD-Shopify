@@ -8,3 +8,5 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 export default function Index() {
   return null;
 }
+
+<div>Hello</div>
