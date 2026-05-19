@@ -35,7 +35,6 @@ function Extension() {
                   edges {
                     node {
                       quantity
-                      name
                     }
                   }
                 }
@@ -52,7 +51,7 @@ function Extension() {
           return;
         }
 
-        const total = (order.lineItems?.edges || []).reduce((sum, item) => {
+        const total = (order.lineItems?.edges || []).reduce((sum: number, item: any) => {
           return sum + (item?.node?.quantity || 0);
         }, 0);
 
@@ -79,27 +78,46 @@ function Extension() {
     setPrintUrl(url);
   }, [orderName, labelCount]);
 
+  const isLoading = !error && labelCount === null;
+
   return (
     <s-admin-print-action src={printUrl || undefined}>
-      <s-box>
-        <s-stack direction="block" gap="base">
-          <s-text>Impression des étiquettes</s-text>
+      <s-stack direction="block" gap="base">
 
-          {error ? (
-            <s-text tone="critical">{error}</s-text>
-          ) : labelCount === null ? (
-            <s-text>Chargement...</s-text>
-          ) : (
-            <>
-              <s-text>N° de commande : {orderName}</s-text>
-              <s-text>Nombre d'étiquettes à imprimer : {labelCount}</s-text>
-            </>
-          )}
-
-          <s-text>-------------------</s-text>
-          <s-text>Impression d'étiquettes by Jojo</s-text>
+        {/* En-tête */}
+        <s-stack direction="block" gap="none">
+          <s-heading>Impression DPD</s-heading>
+          <s-text tone="subdued">Impression d'étiquettes by Jojo</s-text>
         </s-stack>
-      </s-box>
+
+        <s-divider />
+
+        {/* Contenu */}
+        {error ? (
+          <s-banner tone="critical">{error}</s-banner>
+        ) : isLoading ? (
+          <s-stack direction="inline" gap="base">
+            <s-spinner />
+            <s-text tone="subdued">Chargement…</s-text>
+          </s-stack>
+        ) : (
+          <s-stack direction="inline" gap="base">
+            <s-box padding="base" background="surface-secondary">
+              <s-stack direction="block" gap="none">
+                <s-text tone="subdued">Commande</s-text>
+                <s-heading>{orderName}</s-heading>
+              </s-stack>
+            </s-box>
+            <s-box padding="base" background="surface-secondary">
+              <s-stack direction="block" gap="none">
+                <s-text tone="subdued">Étiquettes</s-text>
+                <s-heading>{String(labelCount)}</s-heading>
+              </s-stack>
+            </s-box>
+          </s-stack>
+        )}
+
+      </s-stack>
     </s-admin-print-action>
   );
 }

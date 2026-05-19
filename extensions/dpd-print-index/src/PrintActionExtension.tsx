@@ -9,75 +9,114 @@ function Extension() {
   const {data} = shopify;
 
   const [printUrl, setPrintUrl] = useState<string | undefined>(undefined);
-  const [orderSummary, setOrderSummary] = useState<string>("Chargement...");
+  const [orderCount, setOrderCount] = useState<number | null>(null);
+  const [totalLabels, setTotalLabels] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadOrders() {
-      const selected = data?.selected || [];
-      if (!selected.length) return;
+      try {
+        const selected = data?.selected || [];
+        if (!selected.length) {
+          setError("Aucune commande sélectionnée.");
+          return;
+        }
 
-      const ids = selected.map((s: { id: string }) => s.id);
+        const ids = selected.map((s: { id: string }) => s.id);
 
-      const result = await shopify.query(
-        `query GetOrders($ids: [ID!]!) {
-          nodes(ids: $ids) {
-            __typename
-            ... on Order {
-              id
-              name
-              lineItems(first: 100) {
-                edges {
-                  node {
-                    quantity
+        const result = await shopify.query(
+          `query GetOrders($ids: [ID!]!) {
+            nodes(ids: $ids) {
+              __typename
+              ... on Order {
+                id
+                name
+                lineItems(first: 100) {
+                  edges {
+                    node {
+                      quantity
+                    }
                   }
                 }
               }
             }
-          }
-        }`,
-        { variables: { ids } }
-      );
-
-      const orders = (result?.data?.nodes || []).filter(
-        (n: any) => n.__typename === "Order"
-      );
-
-      const params = orders.map((o: any) => {
-        const count = (o.lineItems?.edges || []).reduce(
-          (sum: number, e: any) => sum + (e?.node?.quantity || 0), 0
+          }`,
+          { variables: { ids } }
         );
-        return `${encodeURIComponent(o.name)}:${count}`;
-      }).join(",");
 
-      const totalLabels = orders.reduce((sum: number, o: any) => {
-        return sum + (o.lineItems?.edges || []).reduce(
-          (s: number, e: any) => s + (e?.node?.quantity || 0), 0
+        const orders = (result?.data?.nodes || []).filter(
+          (n: any) => n.__typename === "Order"
         );
-      }, 0);
 
-      setOrderSummary(`${orders.length} commande(s) — ${totalLabels} étiquette(s)`);
+        const params = orders.map((o: any) => {
+          const count = (o.lineItems?.edges || []).reduce(
+            (sum: number, e: any) => sum + (e?.node?.quantity || 0), 0
+          );
+          return `${encodeURIComponent(o.name)}:${count}`;
+        }).join(",");
 
-      const shop = shopify.config?.shop || "";
-      const url =
-        `https://dpd-shopify-oken.vercel.app/print-dpd-label-bulk?orders=${params}` +
-        `&shop=${encodeURIComponent(shop)}`;
+        const total = orders.reduce((sum: number, o: any) => {
+          return sum + (o.lineItems?.edges || []).reduce(
+            (s: number, e: any) => s + (e?.node?.quantity || 0), 0
+          );
+        }, 0);
 
-      setPrintUrl(url);
+        setOrderCount(orders.length);
+        setTotalLabels(total);
+
+        const shop = shopify.config?.shop || "";
+        const url =
+          `https://dpd-shopify-oken.vercel.app/print-dpd-label-bulk?orders=${params}` +
+          `&shop=${encodeURIComponent(shop)}`;
+
+        setPrintUrl(url);
+      } catch (e) {
+        console.error(e);
+        setError("Erreur lors du chargement des commandes.");
+      }
     }
 
     loadOrders();
   }, [data]);
 
+  const isLoading = !error && orderCount === null;
+
   return (
     <s-admin-print-action src={printUrl || undefined}>
-      <s-box>
-        <s-stack direction="block" gap="base">
-          <s-text>Impression des étiquettes</s-text>
-          <s-text>{orderSummary}</s-text>
-          <s-text>-------------------</s-text>
-          <s-text>Impression d'étiquettes by Jojo</s-text>
+      <s-stack direction="block" gap="base">
+
+        <s-stack direction="block" gap="none">
+          <s-heading>Impression DPD</s-heading>
+          <s-text tone="subdued">Impression d'étiquettes by Jojo</s-text>
         </s-stack>
-      </s-box>
+
+        <s-divider />
+
+        {error ? (
+          <s-banner tone="critical">{error}</s-banner>
+        ) : isLoading ? (
+          <s-stack direction="inline" gap="base">
+            <s-spinner />
+            <s-text tone="subdued">Chargement…</s-text>
+          </s-stack>
+        ) : (
+          <s-stack direction="inline" gap="base">
+            <s-box padding="base" background="surface-secondary">
+              <s-stack direction="block" gap="none">
+                <s-text tone="subdued">Commandes</s-text>
+                <s-heading>{String(orderCount)}</s-heading>
+              </s-stack>
+            </s-box>
+            <s-box padding="base" background="surface-secondary">
+              <s-stack direction="block" gap="none">
+                <s-text tone="subdued">Étiquettes</s-text>
+                <s-heading>{String(totalLabels)}</s-heading>
+              </s-stack>
+            </s-box>
+          </s-stack>
+        )}
+
+      </s-stack>
     </s-admin-print-action>
   );
 }
