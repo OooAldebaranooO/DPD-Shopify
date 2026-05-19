@@ -1,34 +1,18 @@
 import type { LoaderFunctionArgs } from "react-router";
-import { Form, useActionData } from "react-router";
+import { useActionData, useNavigate } from "react-router";
+import { useState } from "react";
 import { login } from "../../shopify.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   if (url.searchParams.get("shop")) {
-    const loginUrl = await login(request).catch((response) => response);
-    if (loginUrl instanceof Response) {
-      const location = loginUrl.headers.get("Location");
-      if (location) {
-        return new Response(
-          `<html><head><script>window.top.location.href = ${JSON.stringify(location)};</script></head></html>`,
-          {
-            status: 200,
-            headers: { "Content-Type": "text/html" },
-          }
-        );
-      }
-    }
-    throw loginUrl;
+    throw await login(request);
   }
   return null;
 };
 
-export const headers = () => ({
-  "Content-Security-Policy": "frame-ancestors https://admin.shopify.com https://*.myshopify.com",
-});
-
 export default function LoginPage() {
-  const actionData = useActionData<{ error?: string }>();
+  const [shop, setShop] = useState("johan-vf.myshopify.com");
 
   return (
     <div style={{
@@ -49,7 +33,6 @@ export default function LoginPage() {
         width: "100%",
         textAlign: "center",
       }}>
-        {/* Logo placeholder */}
         <div style={{
           width: 80,
           height: 80,
@@ -73,54 +56,50 @@ export default function LoginPage() {
           <strong>Livedeco.com</strong>.
         </p>
 
-        <form method="get" action="/">
-          <div style={{ marginBottom: 16, textAlign: "left" }}>
-  <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6, color: "#333" }}>
-    Domaine de la boutique
-  </label>
-  <input
-    id="shop-input"
-    type="text"
-    defaultValue="johan-vf.myshopify.com"
-    placeholder="ma-boutique.myshopify.com"
-    style={{
-      width: "100%",
-      padding: "10px 14px",
-      border: "1px solid #ddd",
-      borderRadius: 6,
-      fontSize: 14,
-      boxSizing: "border-box" as const,
-      outline: "none",
-    }}
-  />
-</div>
+        <div style={{ marginBottom: 16, textAlign: "left" }}>
+          <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6, color: "#333" }}>
+            Domaine de la boutique
+          </label>
+          <input
+            type="text"
+            value={shop}
+            onChange={(e) => setShop(e.target.value)}
+            placeholder="ma-boutique.myshopify.com"
+            style={{
+              width: "100%",
+              padding: "10px 14px",
+              border: "1px solid #ddd",
+              borderRadius: 6,
+              fontSize: 14,
+              boxSizing: "border-box" as const,
+              outline: "none",
+            }}
+          />
+        </div>
 
-<button
-  type="button"
-  onClick={() => {
-    const shop = (document.getElementById("shop-input") as HTMLInputElement)?.value;
-    if (shop) {
-      window.top!.location.href = `/auth/login?shop=${encodeURIComponent(shop)}`;
-    }
-  }}
-  style={{
-    width: "100%",
-    background: "#dc0032",
-    color: "white",
-    border: "none",
-    borderRadius: 6,
-    padding: "12px",
-    fontSize: 15,
-    fontWeight: 600,
-    cursor: "pointer",
-  }}
->
-  Connexion
-</button>
-        </form>
+        <button
+          type="button"
+          onClick={() => {
+            if (shop) {
+              window.location.href = `/auth/login?shop=${encodeURIComponent(shop)}`;
+            }
+          }}
+          style={{
+            width: "100%",
+            background: "#dc0032",
+            color: "white",
+            border: "none",
+            borderRadius: 6,
+            padding: "12px",
+            fontSize: 15,
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          Connexion
+        </button>
       </div>
 
-      {/* Footer */}
       <div style={{ marginTop: 32, textAlign: "center", fontSize: 13, color: "#999" }}>
         <p style={{ margin: "4px 0" }}>Johan Vauche-Forot</p>
         <p style={{ margin: "4px 0" }}>
