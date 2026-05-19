@@ -39,7 +39,6 @@ function Extension() {
                   edges {
                     node {
                       quantity
-                      weight { value unit }
                     }
                   }
                 }
@@ -58,30 +57,23 @@ function Extension() {
         const total = items.reduce((sum: number, item: any) =>
           sum + (item?.node?.quantity || 0), 0);
 
-        const totalWeight = items.reduce((sum: number, item: any) => {
-          const w = item?.node?.weight;
-          if (!w) return sum;
-          const kg = w.unit === "GRAMS" ? w.value / 1000 : w.value;
-          return sum + kg * (item?.node?.quantity || 1);
-        }, 0);
-
         const addr = order.shippingAddress;
-        const destName = addr ? `${addr.firstName || ""} ${addr.lastName || ""}`.trim() : "";
+        const destName = addr
+          ? `${addr.firstName || ""} ${addr.lastName || ""}`.trim()
+          : "";
 
         setOrderName(order.name || null);
         setLabelCount(total);
 
-        const shop = shopify.config?.shop || "";
         const url = `https://dpd-shopify-oken.vercel.app/print-dpd-label` +
           `?orderName=${encodeURIComponent(order.name ?? "")}` +
           `&count=${total}` +
-          `&shop=${encodeURIComponent(shop)}` +
           `&destName=${encodeURIComponent(destName)}` +
           `&destAddress=${encodeURIComponent(addr?.address1 || "")}` +
           `&destZip=${encodeURIComponent(addr?.zip || "")}` +
           `&destCity=${encodeURIComponent(addr?.city || "")}` +
           `&destPhone=${encodeURIComponent(addr?.phone || "")}` +
-          `&weight=${totalWeight.toFixed(2)}`;
+          `&weight=0`;
 
         setPrintUrl(url);
       } catch (e) {
