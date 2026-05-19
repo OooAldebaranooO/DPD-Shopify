@@ -13,15 +13,14 @@ export async function action({ request }) {
 
 export async function loader({ request }) {
   const url = new URL(request.url);
-  const orderName       = url.searchParams.get("orderName")   || "Commande";
-  const count           = Number(url.searchParams.get("count") || "1");
-  const destName        = url.searchParams.get("destName")    || "NOM DESTINATAIRE";
-  const destfirstName    = url.searchParams.get("destfirstName")    || "";
-  const destAddress     = url.searchParams.get("destAddress") || "";
-  const destZip         = url.searchParams.get("destZip")     || "";
-  const destCity        = url.searchParams.get("destCity")    || "";
-  const destPhone       = url.searchParams.get("destPhone")   || "";
-  const weight          = url.searchParams.get("weight")      || "—";
+  const orderName   = url.searchParams.get("orderName")   || "Commande";
+  const count       = Number(url.searchParams.get("count") || "1");
+  const destName    = url.searchParams.get("destName")    || "NOM DESTINATAIRE";
+  const destAddress = url.searchParams.get("destAddress") || "";
+  const destZip     = url.searchParams.get("destZip")     || "";
+  const destCity    = url.searchParams.get("destCity")    || "";
+  const destPhone   = url.searchParams.get("destPhone")   || "";
+  const weight      = url.searchParams.get("weight")      || "—";
 
   const config = {
     login:       process.env.DPD_LOGIN,
@@ -34,7 +33,7 @@ export async function loader({ request }) {
 
   const labels = Array.from({ length: count }, (_, i) => ({
     orderName, index: i + 1, total: count,
-    destName, destfirstName, destAddress, destZip, destCity, destPhone, weight,
+    destName, destAddress, destZip, destCity, destPhone, weight,
   }));
 
   return new Response(renderLabels(labels, config), {
@@ -262,7 +261,7 @@ function renderLabels(labels, config) {
   </style>
 </head>
 <body>
-  ${labels.map(({ orderName, index, total, destName, destfirstName, destAddress, destZip, destCity, destPhone, weight }) => {
+  ${labels.map(({ orderName, index, total, destName, destAddress, destZip, destCity, destPhone, weight }) => {
     const fakeTrack = `1038${Math.floor(Math.random()*9000+1000)} ${Math.floor(Math.random()*9000+1000)} ${Math.floor(Math.random()*90+10)} C`;
     const fakeRouting = `FR-DPD-${Math.floor(Math.random()*9000+1000)}-${Math.floor(Math.random()*900+100)}-FR-${config.senderZip || "38120"}`;
     const fakeSort = `${agencyCode}SA`;
@@ -276,7 +275,6 @@ function renderLabels(labels, config) {
       <div class="header">
         <div class="header-dest">
           <div class="dest-name">${destName}</div>
-          <div class="dest-name">${destfirstName}</div>
           <div class="dest-address">
             ${destAddress}<br>
             <strong>${destZip}</strong><br>

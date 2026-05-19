@@ -21,14 +21,13 @@ function Extension() {
         if (!orderId) { setError("Aucun ID de commande reçu."); return; }
 
         const result = await shopify.query(
-          `query GetOrder($ids: [ID!]!) {
+          `query GetOrderWithWeights($ids: [ID!]!) {
             nodes(ids: $ids) {
               __typename
               ... on Order {
                 id
                 name
                 shippingAddress {
-                  name
                   firstName
                   lastName
                   address1
@@ -40,6 +39,17 @@ function Extension() {
                   edges {
                     node {
                       quantity
+                      variant {
+                        id
+                        inventoryItem {
+                          measurement {
+                            weight {
+                              value
+                              unit
+                            }
+                          }
+                        }
+                      }
                     }
                   }
                 }
