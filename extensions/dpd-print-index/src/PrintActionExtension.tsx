@@ -17,10 +17,7 @@ function Extension() {
     async function loadOrders() {
       try {
         const selected = data?.selected || [];
-        if (!selected.length) {
-          setError("Aucune commande sélectionnée.");
-          return;
-        }
+        if (!selected.length) { setError("Aucune commande sélectionnée."); return; }
 
         const ids = selected.map((s: { id: string }) => s.id);
 
@@ -31,10 +28,19 @@ function Extension() {
               ... on Order {
                 id
                 name
+                shippingAddress {
+                  firstName
+                  lastName
+                  address1
+                  zip
+                  city
+                  phone
+                }
                 lineItems(first: 100) {
                   edges {
                     node {
                       quantity
+                      weight { value unit }
                     }
                   }
                 }
@@ -43,39 +49,53 @@ function Extension() {
           }`,
           { variables: { ids } }
         );
-
+        
         const orders = (result?.data?.nodes || []).filter(
           (n: any) => n.__typename === "Order"
         );
 
         const params = orders.map((o: any) => {
-          const count = (o.lineItems?.edges || []).reduce(
-            (sum: number, e: any) => sum + (e?.node?.quantity || 0), 0
-          );
-          return `${encodeURIComponent(o.name)}:${count}`;
+          const items = o.lineItems?.edges || [];
+          const count = items.reduce((sum: number, e: any) =>
+            sum + (e?.node?.quantity || 0), 0);
+          const weight = items.reduce((sum: number, e: any) => {
+            const w = e?.node?.weight;
+            if (!w) return sum;
+            const kg = w.unit === "GRAMS" ? w.value / 1000 : w.value;
+            return sum + kg * (e?.node?.quantity || 1);
+          }, 0);
+          const addr = o.shippingAddress;
+          const destName = addr
+            ? `${addr.firstName || ""} ${addr.lastName || ""}`.trim()
+            : "";
+          return [
+            encodeURIComponent(o.name),
+            count,
+            encodeURIComponent(destName),
+            encodeURIComponent(addr?.address1 || ""),
+            encodeURIComponent(addr?.zip || ""),
+            encodeURIComponent(addr?.city || ""),
+            encodeURIComponent(addr?.phone || ""),
+            weight.toFixed(2),
+          ].join("|");
         }).join(",");
 
-        const total = orders.reduce((sum: number, o: any) => {
-          return sum + (o.lineItems?.edges || []).reduce(
-            (s: number, e: any) => s + (e?.node?.quantity || 0), 0
-          );
-        }, 0);
+        const total = orders.reduce((sum: number, o: any) =>
+          sum + (o.lineItems?.edges || []).reduce(
+            (s: number, e: any) => s + (e?.node?.quantity || 0), 0), 0);
 
         setOrderCount(orders.length);
         setTotalLabels(total);
 
         const shop = shopify.config?.shop || "";
-        const url =
-          `https://dpd-shopify-oken.vercel.app/print-dpd-label-bulk?orders=${params}` +
-          `&shop=${encodeURIComponent(shop)}`;
-
-        setPrintUrl(url);
+        setPrintUrl(
+          `https://dpd-shopify-oken.vercel.app/print-dpd-label-bulk?orders=${params}&shop=${encodeURIComponent(shop)}`
+        );
       } catch (e) {
         console.error(e);
         setError("Erreur lors du chargement des commandes.");
       }
     }
-
     loadOrders();
   }, [data]);
 
@@ -84,14 +104,11 @@ function Extension() {
   return (
     <s-admin-print-action src={printUrl || undefined}>
       <s-stack direction="block" gap="base">
-
         <s-stack direction="block" gap="none">
           <s-heading>Impression DPD</s-heading>
           <s-text tone="subdued">Impression d'étiquettes by Jojo</s-text>
         </s-stack>
-
         <s-divider />
-
         {error ? (
           <s-banner tone="critical">{error}</s-banner>
         ) : isLoading ? (
@@ -115,7 +132,6 @@ function Extension() {
             </s-box>
           </s-stack>
         )}
-
       </s-stack>
     </s-admin-print-action>
   );

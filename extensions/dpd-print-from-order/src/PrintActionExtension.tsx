@@ -18,11 +18,7 @@ function Extension() {
       try {
         setError(null);
         const orderId = data?.selected?.[0]?.id || null;
-
-        if (!orderId) {
-          setError("Aucun ID de commande reçu.");
-          return;
-        }
+        if (!orderId) { setError("Aucun ID de commande reçu."); return; }
 
         const result = await shopify.query(
           `query GetOrder($ids: [ID!]!) {
@@ -31,10 +27,19 @@ function Extension() {
               ... on Order {
                 id
                 name
+                shippingAddress {
+                  firstName
+                  lastName
+                  address1
+                  zip
+                  city
+                  phone
+                }
                 lineItems(first: 100) {
                   edges {
                     node {
                       quantity
+                      weight { value unit }
                     }
                   }
                 }
@@ -44,55 +49,59 @@ function Extension() {
           { variables: { ids: [orderId] } },
         );
 
-        const order = result?.data?.nodes?.[0];
-
+        const order = result?.data?.nodes?.[0] as any;
         if (!order || order.__typename !== "Order") {
-          setError("Impossible de charger la commande.");
-          return;
+          setError("Impossible de charger la commande."); return;
         }
 
-        const total = (order.lineItems?.edges || []).reduce((sum: number, item: any) => {
-          return sum + (item?.node?.quantity || 0);
+        const items = order.lineItems?.edges || [];
+        const total = items.reduce((sum: number, item: any) =>
+          sum + (item?.node?.quantity || 0), 0);
+
+        const totalWeight = items.reduce((sum: number, item: any) => {
+          const w = item?.node?.weight;
+          if (!w) return sum;
+          const kg = w.unit === "GRAMS" ? w.value / 1000 : w.value;
+          return sum + kg * (item?.node?.quantity || 1);
         }, 0);
+
+        const addr = order.shippingAddress;
+        const destName = addr ? `${addr.firstName || ""} ${addr.lastName || ""}`.trim() : "";
 
         setOrderName(order.name || null);
         setLabelCount(total);
+
+        const shop = shopify.config?.shop || "";
+        const url = `https://dpd-shopify-oken.vercel.app/print-dpd-label` +
+          `?orderName=${encodeURIComponent(order.name ?? "")}` +
+          `&count=${total}` +
+          `&shop=${encodeURIComponent(shop)}` +
+          `&destName=${encodeURIComponent(destName)}` +
+          `&destAddress=${encodeURIComponent(addr?.address1 || "")}` +
+          `&destZip=${encodeURIComponent(addr?.zip || "")}` +
+          `&destCity=${encodeURIComponent(addr?.city || "")}` +
+          `&destPhone=${encodeURIComponent(addr?.phone || "")}` +
+          `&weight=${totalWeight.toFixed(2)}`;
+
+        setPrintUrl(url);
       } catch (e) {
         console.error(e);
         setError("Erreur lors du chargement de la commande.");
       }
     }
-
     loadOrder();
   }, [data]);
-
-  useEffect(() => {
-    if (!orderName || !labelCount) return;
-
-    const shop = shopify.config?.shop || "";
-    const url =
-      `https://dpd-shopify-oken.vercel.app/print-dpd-label?orderName=${encodeURIComponent(orderName)}` +
-      `&count=${labelCount}` +
-      `&shop=${encodeURIComponent(shop)}`;
-
-    setPrintUrl(url);
-  }, [orderName, labelCount]);
 
   const isLoading = !error && labelCount === null;
 
   return (
     <s-admin-print-action src={printUrl || undefined}>
       <s-stack direction="block" gap="base">
-
-        {/* En-tête */}
         <s-stack direction="block" gap="none">
           <s-heading>Impression DPD</s-heading>
           <s-text tone="subdued">Impression d'étiquettes by Jojo</s-text>
         </s-stack>
-
         <s-divider />
-
-        {/* Contenu */}
         {error ? (
           <s-banner tone="critical">{error}</s-banner>
         ) : isLoading ? (
@@ -116,7 +125,6 @@ function Extension() {
             </s-box>
           </s-stack>
         )}
-
       </s-stack>
     </s-admin-print-action>
   );
