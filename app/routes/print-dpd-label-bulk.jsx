@@ -61,7 +61,7 @@ export async function loader({ request }) {
       .badge { border: 1px solid #222; padding: 6px 10px; font-size: 14px; font-weight: 700; }
       .section { margin-bottom: 18px; }
       .title { font-size: 13px; font-weight: 700; text-transform: uppercase; margin-bottom: 6px; }
-      .box { border: 1px solid #333; padding: 10px 12px; min-height: 60px; }
+      .box { border: 1px solid #333; padding: 10px 12px; }
       .ref { font-size: 20px; font-weight: 700; }
       .barcode {
         margin-top: 20px;
@@ -100,7 +100,10 @@ export async function loader({ request }) {
         </div>
         <div class="section">
           <div class="title">Expéditeur</div>
-          <div class="box">${config.login ? `${config.senderName} - ${config.senderAddress} ${config.senderZip} ${config.senderCity}` : "À configurer"}</div>
+          <div class="box">${config.login ? `${config.senderName}<br>
+          ${config.senderAddress}<br>
+          ${config.senderZip}<br>
+          ${config.senderCity}` : "À configurer"}</div>
         </div>
         <div class="barcode">CODE BARRES DPD À VENIR</div>
         <div class="footer">Colis ${label.index} sur ${label.total}</div>

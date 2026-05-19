@@ -8,5 +8,3 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 export default function LoginPage() {
   return null;
 }
-
-<div>Hola</div>
