@@ -75,47 +75,48 @@ export default function LoginPage() {
 
         <form method="get" action="/">
           <div style={{ marginBottom: 16, textAlign: "left" }}>
-            <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6, color: "#333" }}>
-              Domaine de la boutique
-            </label>
-            <input
-              type="text"
-              name="shop"
-              placeholder="livedeco.com"
-              style={{
-                width: "100%",
-                padding: "10px 14px",
-                border: "1px solid #ddd",
-                borderRadius: 6,
-                fontSize: 14,
-                boxSizing: "border-box",
-                outline: "none",
-              }}
-            />
-          </div>
+  <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6, color: "#333" }}>
+    Domaine de la boutique
+  </label>
+  <input
+    id="shop-input"
+    type="text"
+    defaultValue="johan-vf.myshopify.com"
+    placeholder="ma-boutique.myshopify.com"
+    style={{
+      width: "100%",
+      padding: "10px 14px",
+      border: "1px solid #ddd",
+      borderRadius: 6,
+      fontSize: 14,
+      boxSizing: "border-box" as const,
+      outline: "none",
+    }}
+  />
+</div>
 
-          {actionData?.error && (
-            <p style={{ color: "#dc0032", fontSize: 13, marginBottom: 12 }}>
-              {actionData.error}
-            </p>
-          )}
-
-          <button
-            type="submit"
-            style={{
-              width: "100%",
-              background: "#dc0032",
-              color: "white",
-              border: "none",
-              borderRadius: 6,
-              padding: "12px",
-              fontSize: 15,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            Connexion
-          </button>
+<button
+  type="button"
+  onClick={() => {
+    const shop = (document.getElementById("shop-input") as HTMLInputElement)?.value;
+    if (shop) {
+      window.top!.location.href = `/auth/login?shop=${encodeURIComponent(shop)}`;
+    }
+  }}
+  style={{
+    width: "100%",
+    background: "#dc0032",
+    color: "white",
+    border: "none",
+    borderRadius: 6,
+    padding: "12px",
+    fontSize: 15,
+    fontWeight: 600,
+    cursor: "pointer",
+  }}
+>
+  Connexion
+</button>
         </form>
       </div>
 
