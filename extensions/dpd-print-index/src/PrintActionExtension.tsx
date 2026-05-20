@@ -73,7 +73,7 @@ function Extension() {
               encodeURIComponent(addr?.city || ""),
               encodeURIComponent(addr?.phone || ""),
               "0",
-            ].join("%7C");
+            ].join("~");
           }).join(",");
 
           const total = orders.reduce((sum: number, o: any) =>

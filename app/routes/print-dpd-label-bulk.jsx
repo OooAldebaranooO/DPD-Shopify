@@ -31,7 +31,7 @@ export async function loader({ request }) {
   const isMock = !config.login || !config.password;
 
   const orders = ordersParam.split(",").filter(Boolean).map((part) => {
-    const segments = part.split("|");
+    const segments = part.split("~");
     return {
       name:        decodeURIComponent(segments[0] || ""),
       count:       parseInt(segments[1]) || 1,
