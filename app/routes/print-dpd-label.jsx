@@ -272,66 +272,295 @@ function renderLabels(labels, config, isMock) {
   <meta charset="utf-8"/>
   <title>Étiquettes DPD</title>
   <style>
-    @page { size: A6 landscape; margin: 0; }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: Arial, sans-serif; color: #000; background: #fff; }
-    .label {
-      width: 148mm; min-height: 105mm;
-      border: 1px solid #000;
-      page-break-after: always;
-      display: flex; flex-direction: column; overflow: hidden;
-      margin-bottom: 50px;
-    }
-    .label:last-child { page-break-after: auto; }
-    .mock-banner {
-      background: #fff3cd; border-bottom: 1px solid #ffc107;
-      padding: 1.5mm 3mm; font-size: 6.5pt; text-align: center;
-    }
-    .header {
-      display: grid; grid-template-columns: 1fr 8mm 1fr;
-      border-bottom: 1px solid #000; min-height: 28mm; position: relative;
-    }
-    .header-dest { padding: 3mm; }
-    .dest-name { font-size: 13pt; font-weight: 700; line-height: 1.2; margin-bottom: 2mm; text-transform: uppercase; }
-    .dest-address { font-size: 9pt; line-height: 1.5; }
-    .header-separator {
-      border-left: 1px solid #000; border-right: 1px solid #000;
-      display: flex; align-items: center; justify-content: center;
-    }
-    .header-separator span { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 6pt; letter-spacing: 1px; }
-    .header-right { display: grid; grid-template-rows: 1fr 1fr; }
-    .header-right-top { border-bottom: 1px solid #000; padding: 2mm; font-size: 7pt; line-height: 1.4; }
-    .header-right-top .lbl { font-size: 6pt; color: #444; margin-bottom: 1mm; }
-    .header-right-bottom { padding: 2mm; font-size: 6.5pt; line-height: 1.4; }
-    .header-right-bottom .lbl { font-size: 6pt; color: #444; margin-bottom: 1mm; }
-    .dpd-logo { position: absolute; top: 3mm; right: 3mm; height: 45px; }
-    .middle { display: grid; grid-template-columns: 1fr auto; border-bottom: 1px solid #000; font-size: 7.5pt; }
-    .middle-left { padding: 2mm 3mm; border-right: 1px solid #000; }
-    .row { margin-bottom: 1.5mm; }
-    .row .lbl { font-size: 6.5pt; color: #444; display: block; }
-    .middle-right { display: grid; grid-template-columns: auto auto; }
-    .colis-poids { display: flex; flex-direction: column; border-right: 1px solid #000; }
-    .colis-badge { padding: 2mm 4mm; border-bottom: 1px solid #000; flex: 1; }
-    .colis-badge .lbl { font-size: 6pt; color: #444; }
-    .colis-badge strong { font-size: 16pt; font-weight: 700; }
-    .poids-badge { padding: 2mm 4mm; flex: 1; }
-    .poids-badge .lbl { font-size: 6pt; color: #444; }
-    .poids-badge strong { font-size: 16pt; font-weight: 700; }
-    .qr-block { padding: 2mm; display: flex; align-items: center; justify-content: center; }
-    .qr-placeholder { width: 24mm; height: 24mm; border: 1px solid #ccc; display: flex; align-items: center; justify-content: center; font-size: 5pt; color: #aaa; text-align: center; }
-    .tracking { display: grid; grid-template-columns: 1fr auto; padding: 1.5mm 3mm; border-bottom: 1px solid #000; align-items: center; }
-    .tracking-number { font-size: 18pt; font-weight: 700; }
-    .service-code { text-align: right; }
-    .service-code .code { font-size: 13pt; font-weight: 700; }
-    .service-code .lbl { font-size: 6pt; color: #444; }
-    .footer-codes { display: grid; grid-template-columns: auto 1fr auto; align-items: center; padding: 1.5mm 3mm; border-bottom: 1px solid #000; gap: 3mm; }
-    .depot-code { background:#000; color:#fff; font-size:16pt; font-weight:700; padding:1mm 4mm; }
-    .routing-code { font-size:10pt; font-weight:700; text-align:center; }
-    .sort-code { background:#000; color:#fff; font-size:16pt; font-weight:700; padding:1mm 4mm; }
-    .barcode-bottom { padding: 2mm 3mm 1.5mm; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-    .barcode-svg-wrap { width: 90%; }
-    .barcode-text { font-size: 6pt; color: #444; margin-top: 1.5mm; text-align: center; }
-  </style>
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    width: 210mm;
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+    color: #000;
+    background: #fff;
+  }
+
+  .page {
+    width: 210mm;
+    height: 297mm;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 0;
+    page-break-after: always;
+  }
+
+  .page:last-child {
+    page-break-after: auto;
+  }
+
+  .label {
+    width: 105mm;
+    height: 148mm;
+    border: 1px dashed #999;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .mock-banner {
+    background: #fff3cd;
+    border-bottom: 1px solid #ffc107;
+    padding: 1mm 2mm;
+    font-size: 5.5pt;
+    text-align: center;
+  }
+
+  .header {
+    display: grid;
+    grid-template-columns: 1fr 6mm 1fr;
+    border-bottom: 1px solid #000;
+    min-height: 22mm;
+    position: relative;
+  }
+
+  .header-dest {
+    padding: 2mm;
+  }
+
+  .dest-name {
+    font-size: 10pt;
+    font-weight: 700;
+    line-height: 1.2;
+    margin-bottom: 1.5mm;
+    text-transform: uppercase;
+  }
+
+  .dest-address {
+    font-size: 7.5pt;
+    line-height: 1.4;
+  }
+
+  .header-separator {
+    border-left: 1px solid #000;
+    border-right: 1px solid #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .header-separator span {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    font-size: 5pt;
+    letter-spacing: 1px;
+  }
+
+  .header-right {
+    display: grid;
+    grid-template-rows: 1fr 1fr;
+  }
+
+  .header-right-top {
+    border-bottom: 1px solid #000;
+    padding: 1.5mm;
+    font-size: 6pt;
+    line-height: 1.3;
+  }
+
+  .header-right-top .lbl {
+    font-size: 5pt;
+    color: #444;
+    margin-bottom: 0.5mm;
+  }
+
+  .header-right-bottom {
+    padding: 1.5mm;
+    font-size: 5.5pt;
+    line-height: 1.3;
+  }
+
+  .header-right-bottom .lbl {
+    font-size: 5pt;
+    color: #444;
+    margin-bottom: 0.5mm;
+  }
+
+  .dpd-logo {
+    position: absolute;
+    top: 2mm;
+    right: 2mm;
+    height: 32px;
+  }
+
+  .middle {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    border-bottom: 1px solid #000;
+    font-size: 6.5pt;
+  }
+
+  .middle-left {
+    padding: 1.5mm 2mm;
+    border-right: 1px solid #000;
+  }
+
+  .row {
+    margin-bottom: 1mm;
+  }
+
+  .row .lbl {
+    font-size: 5.5pt;
+    color: #444;
+    display: block;
+  }
+
+  .middle-right {
+    display: grid;
+    grid-template-columns: auto auto;
+  }
+
+  .colis-poids {
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid #000;
+  }
+
+  .colis-badge {
+    padding: 1.5mm 3mm;
+    border-bottom: 1px solid #000;
+    flex: 1;
+  }
+
+  .colis-badge .lbl {
+    font-size: 5pt;
+    color: #444;
+  }
+
+  .colis-badge strong {
+    font-size: 13pt;
+    font-weight: 700;
+  }
+
+  .poids-badge {
+    padding: 1.5mm 3mm;
+    flex: 1;
+  }
+
+  .poids-badge .lbl {
+    font-size: 5pt;
+    color: #444;
+  }
+
+  .poids-badge strong {
+    font-size: 13pt;
+    font-weight: 700;
+  }
+
+  .qr-block {
+    padding: 1.5mm;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .qr-placeholder {
+    width: 18mm;
+    height: 18mm;
+    border: 1px solid #ccc;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 4pt;
+    color: #aaa;
+    text-align: center;
+  }
+
+  .tracking {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    padding: 1mm 2mm;
+    border-bottom: 1px solid #000;
+    align-items: center;
+  }
+
+  .tracking-number {
+    font-size: 14pt;
+    font-weight: 700;
+  }
+
+  .service-code {
+    text-align: right;
+  }
+
+  .service-code .code {
+    font-size: 10pt;
+    font-weight: 700;
+  }
+
+  .service-code .lbl {
+    font-size: 5pt;
+    color: #444;
+  }
+
+  .footer-codes {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    padding: 1mm 2mm;
+    border-bottom: 1px solid #000;
+    gap: 2mm;
+  }
+
+  .depot-code {
+    background: #000;
+    color: #fff;
+    font-size: 13pt;
+    font-weight: 700;
+    padding: 0.5mm 3mm;
+  }
+
+  .routing-code {
+    font-size: 8pt;
+    font-weight: 700;
+    text-align: center;
+  }
+
+  .sort-code {
+    background: #000;
+    color: #fff;
+    font-size: 13pt;
+    font-weight: 700;
+    padding: 0.5mm 3mm;
+  }
+
+  .barcode-bottom {
+    padding: 1.5mm 2mm 1mm;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .barcode-svg-wrap {
+    width: 90%;
+  }
+
+  .barcode-text {
+    font-size: 5pt;
+    color: #444;
+    margin-top: 1mm;
+    text-align: center;
+  }
+</style>
 </head>
 <body>
   ${labels.map(({ orderName, index, total, destName, destAddress, destAddress2,
