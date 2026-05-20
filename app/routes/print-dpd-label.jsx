@@ -214,7 +214,7 @@ function generateBarcodeSVG(value) {
   const rng  = (i) => ((seed * 9301 + 49297 * (i + 1)) % 233280) / 233280;
   const bars = [];
   let x = 4;
-  const h = 150;
+  const h = 110;
   [2,1,1,4,1,2].forEach((w, i) => {
     if (i % 2 === 0) bars.push(`<rect x="${x}" y="0" width="${w*1.5}" height="${h}" fill="black"/>`);
     x += w * 1.5;
@@ -287,6 +287,8 @@ async function renderLabels(labels, config, isMock) {
     @page {
       size: 105mm 148mm;
       margin: 0;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -375,8 +377,8 @@ async function renderLabels(labels, config, isMock) {
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 22mm;
-      height: 22mm;
+      width: 27mm;
+      height: 27mm;
     }
     .qr-block svg { width: 100%; height: 100%; }
     .tracking {
@@ -427,6 +429,34 @@ async function renderLabels(labels, config, isMock) {
       color: #444;
       margin-top: 1mm;
       text-align: center;
+    }
+
+    @media print {
+      * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        color-adjust: exact !important;
+      }
+    }
+
+    .depot-code {
+      background: #000 !important;
+      color: #fff !important;
+      font-size: 13pt;
+      font-weight: 700;
+      padding: 0.5mm 3mm;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .sort-code {
+      background: #000 !important;
+      color: #fff !important;
+      font-size: 13pt;
+      font-weight: 700;
+      padding: 0.5mm 3mm;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
   </style>
 </head>
