@@ -40,6 +40,7 @@ function Extension() {
                 lineItems(first: 100) {
                   edges {
                     node {
+                      currentQuantity
                       quantity
                     }
                   }
@@ -55,28 +56,30 @@ function Extension() {
         );
 
         const params = orders.map((o: any) => {
-          const items = o.lineItems?.edges || [];
-          const count = items.reduce((sum: number, e: any) =>
-            sum + (e?.node?.quantity || 0), 0);
+        const items = (o.lineItems?.edges || []).filter(
+            (e: any) => (e?.node?.currentQuantity || 0) > 0
+          );
+          const count = items.length; // 1 ligne active = 1 colis
           const addr = o.shippingAddress;
           const destName = addr
-            ? `${addr.firstName || ""} ${addr.lastName || ""}`.trim()
-            : "";
-          return [
-            encodeURIComponent(o.name),
-            count,
-            encodeURIComponent(destName),
-            encodeURIComponent(addr?.address1 || ""),
-            encodeURIComponent(addr?.zip || ""),
-            encodeURIComponent(addr?.city || ""),
-            encodeURIComponent(addr?.phone || ""),
-            "0",
-          ].join("|");
-        }).join(",");
+              ? `${addr.firstName || ""} ${addr.lastName || ""}`.trim()
+              : "";
+            return [
+              encodeURIComponent(o.name),
+              count,
+              encodeURIComponent(destName),
+              encodeURIComponent(addr?.address1 || ""),
+              encodeURIComponent(addr?.zip || ""),
+              encodeURIComponent(addr?.city || ""),
+              encodeURIComponent(addr?.phone || ""),
+              "0",
+            ].join("|");
+          }).join(",");
 
-        const total = orders.reduce((sum: number, o: any) =>
-          sum + (o.lineItems?.edges || []).reduce(
-            (s: number, e: any) => s + (e?.node?.quantity || 0), 0), 0);
+          const total = orders.reduce((sum: number, o: any) =>
+            sum + (o.lineItems?.edges || []).filter(
+              (e: any) => (e?.node?.currentQuantity || 0) > 0
+            ).length, 0);
 
         setOrderCount(orders.length);
         setTotalLabels(total);

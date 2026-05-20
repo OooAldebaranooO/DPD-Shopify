@@ -211,7 +211,7 @@ function generateBarcodeSVG(value) {
 
   const bars = [];
   let x = 4;
-  const h = 50;
+  const h = 150;
 
   [2,1,1,4,1,2].forEach((w, i) => {
     if (i % 2 === 0) bars.push(`<rect x="${x}" y="0" width="${w*1.5}" height="${h}" fill="black"/>`);
