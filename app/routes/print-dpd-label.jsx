@@ -51,6 +51,7 @@ export async function loader({ request }) {
   };
 
   const isMock = !config.login || !config.password;
+  console.log("isMock:", isMock, "login:", config.login ? "SET" : "EMPTY");
 
   let labels = [];
 
@@ -61,6 +62,7 @@ export async function loader({ request }) {
       });
     } catch (e) {
       console.error("Erreur EPrint:", e);
+      console.error("Erreur EPrint:", e.message);
       labels = buildMockLabels(count, orderName, destName, destAddress, destAddress2, destZip, destCity, destPhone, weights, skusParam, titlesParam);
     }
   } else {
