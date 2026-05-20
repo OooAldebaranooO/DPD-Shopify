@@ -137,7 +137,7 @@ function Extension() {
           };
         });
 
-        const weightsParam = activeItems.join(",");
+        const weightsParam = activeItems.map((i: any) => i.weight).join(",");
         const skusParam     = activeItems.map((i: any) => encodeURIComponent(i.sku)).join(",");
         const titlesParam   = activeItems.map((i: any) => encodeURIComponent(i.title)).join(",");
 

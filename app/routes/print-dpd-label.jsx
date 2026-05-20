@@ -47,10 +47,10 @@ export async function loader({ request }) {
       });
     } catch (e) {
       console.error("Erreur EPrint:", e);
-      labels = buildMockLabels(count, orderName, destName, destAddress, destAddress2, destZip, destCity, destPhone, weights);
+      labels = buildMockLabels(count, orderName, destName, destAddress, destAddress2, destZip, destCity, destPhone, weights, skusParam, titlesParam);
     }
   } else {
-    labels = buildMockLabels(count, orderName, destName, destAddress, destAddress2, destZip, destCity, destPhone, weights);
+    labels = buildMockLabels(count, orderName, destName, destAddress, destAddress2, destZip, destCity, destPhone, weights, skusParam, titlesParam);
   }
 
   return new Response(renderLabels(labels, config, isMock), {
@@ -178,15 +178,17 @@ function escapeXml(str) {
     .replace(/'/g, "&apos;");
 }
 
-function buildMockLabels(count, orderName, destName, destAddress, destAddress2, destZip, destCity, destPhone, weights) {
+function buildMockLabels(count, orderName, destName, destAddress, destAddress2, destZip, destCity, destPhone, weights, skusParam, titlesParam) {
   const weightsList = String(weights || "1").split(",").map(w => parseFloat(w) || 0);
+  const skusList    = String(skusParam || "").split(",").map(s => decodeURIComponent(s));
+  const titlesList  = String(titlesParam || "").split(",").map(t => decodeURIComponent(t));
   return Array.from({ length: count }, (_, i) => ({
     orderName, index: i + 1, total: count,
     destName, destAddress, destAddress2, destZip, destCity, destPhone,
     weight: (weightsList[i] ?? weightsList[0] ?? 1).toFixed(2),
-    labelPdf: null, trackingNumber: null, fromApi: false,
-    sku:   skusList[i] ?? "",
+    sku:   skusList[i]   ?? "",
     title: titlesList[i] ?? "",
+    labelPdf: null, trackingNumber: null, fromApi: false,
   }));
 }
 
@@ -322,13 +324,11 @@ function renderLabels(labels, config, isMock) {
   </style>
 </head>
 <body>
-  ${labels.map(({ orderName, index, total, destName, destAddress, destAddress2, destZip, destCity, destPhone, weight, trackingNumber }) => {
+  ${labels.map(({ orderName, index, total, destName, destAddress, destAddress2, destZip, destCity, destPhone, weight, trackingNumber, sku, title }) => {
     const fakeTrack    = trackingNumber || `1038${Math.floor(Math.random()*9000+1000)}${Math.floor(Math.random()*9000+1000)}${Math.floor(Math.random()*90+10)}C`;
     const fakeRouting  = `FR-DPD-${Math.floor(Math.random()*9000+1000)}-${Math.floor(Math.random()*900+100)}-FR-${config.senderZip || "38120"}`;
     const fakeSort     = `${agencyCode}SA`;
     const trackingUrl  = `http://www.dpd.fr/tracer_${orderName.replace("#","")}_${agencyCode}${contractNumber}`;
-    const skusList   = skusParam.split(",").map(s => decodeURIComponent(s));
-    const titlesList = titlesParam.split(",").map(t => decodeURIComponent(t));
 
     return `
     <div class="label">
