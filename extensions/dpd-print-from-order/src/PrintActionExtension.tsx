@@ -66,6 +66,8 @@ function Extension() {
           { variables: { ids: [orderId] } },
         );
 
+        console.log('GraphQL result', JSON.stringify(result, null, 2));
+
         const order = result?.data?.nodes?.[0] as any;
         if (!order || order.__typename !== "Order") {
           setError("Impossible de charger la commande.");
