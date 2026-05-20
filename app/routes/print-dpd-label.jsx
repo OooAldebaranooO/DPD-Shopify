@@ -377,8 +377,8 @@ async function renderLabels(labels, config, isMock) {
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 27mm;
-      height: 27mm;
+      width: 27.65mm
+      height: 27.65mm
     }
     .qr-block svg { width: 100%; height: 100%; }
     .tracking {
