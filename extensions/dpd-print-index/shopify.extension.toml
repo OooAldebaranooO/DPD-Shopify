@@ -6,9 +6,9 @@ type = "ui_extension"
 uid = "e5201313-ac38-701c-a47d-676c67e4f26c2e4bc045"
 
 # Only 1 target can be specified for each admin print action extension
-[[extensions.targeting]]
-module = "./src/PrintActionExtension.tsx"
-target = "admin.order-index.selection-print-action.render"
+# [[extensions.targeting]]
+# module = "./src/PrintActionExtension.tsx"
+# target = "admin.order-index.selection-print-action.render"
 
 # Valid extension targets:
 
