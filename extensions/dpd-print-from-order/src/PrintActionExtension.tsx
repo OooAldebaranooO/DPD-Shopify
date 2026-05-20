@@ -66,7 +66,7 @@ function Extension() {
           { variables: { ids: [orderId] } },
         );
 
-        console.log('GraphQL result', JSON.stringify(result, null, 2));
+        //console.log('GraphQL result', JSON.stringify(result, null, 2));
 
         const order = result?.data?.nodes?.[0] as any;
         if (!order || order.__typename !== "Order") {
@@ -111,6 +111,12 @@ function Extension() {
         const skusParam    = activeItems.map((i: any) => encodeURIComponent(i.sku)).join(",");
         const titlesParam  = activeItems.map((i: any) => encodeURIComponent(i.title)).join(",");
 
+        const ref1 = activeItems
+          .map((i: any) => (i.sku ? `${i.sku} - ${i.title}` : i.title))
+          .join(" | ");
+
+        console.log('Ref1 string', ref1);
+
         const url = `https://dpd-shopify-oken.vercel.app/print-dpd-label` +
           `?orderName=${encodeURIComponent(order.name ?? "")}` +
           `&count=${totalLabels}` +
@@ -122,7 +128,8 @@ function Extension() {
           `&destPhone=${encodeURIComponent(addr?.phone || "")}` +
           `&weights=${encodeURIComponent(weightsParam)}` +
           `&skus=${skusParam}` +
-          `&titles=${titlesParam}`;
+          `&titles=${titlesParam}` +
+          `&ref1=${encodeURIComponent(ref1)}`; // <-- ici
 
         setPrintUrl(url);
       } catch (e) {

@@ -24,6 +24,12 @@ export async function loader({ request }) {
   const weights      = url.searchParams.get("weights")      || "1";
   const skusParam    = url.searchParams.get("skus")         || "";
   const titlesParam  = url.searchParams.get("titles")       || "";
+  const skusList   = String(skusParam  || "").split(",").map(s => decodeURIComponent(s));
+  const titlesList = String(titlesParam|| "").split(",").map(t => decodeURIComponent(t));
+
+  const ref1 = skusList.length > 0
+    ? `${skusList[0]} - ${titlesList[0] || ""}`.trim()
+    : (titlesList[0] || orderName);
 
   const config = {
     login:          process.env.DPD_LOGIN,
@@ -44,7 +50,7 @@ export async function loader({ request }) {
   if (!isMock) {
     try {
       labels = await callDpdEprint(config, {
-        orderName, count, destName, destAddress, destAddress2, destZip, destCity, destPhone, weights,
+        orderName, count, destName, destAddress, destAddress2, destZip, destCity, destPhone, weights, ref1,
       });
     } catch (e) {
       console.error("Erreur EPrint:", e);
@@ -65,72 +71,77 @@ export async function loader({ request }) {
 }
 
 async function callDpdEprint(config, order) {
-  const WS_URL = "https://e-station.cargonet.software/dpd-eprintwebservice/eprintwebservice.asmx";
-  const shippingDate = new Date().toLocaleDateString("fr-FR").split("/").join(".");
+      const WS_URL = "https://e-station.cargonet.software/dpd-eprintwebservice/eprintwebservice.asmx";
+      const shippingDate = new Date().toLocaleDateString("fr-FR").split(".").join(".");
 
-  // Parse la liste des poids
-  const weightsList = String(order.weights || "1").split(",").map(w => parseFloat(w) || 0);
+      const weightsList = String(order.weights || "1").split(",").map(w => parseFloat(w) || 0);
 
-  const labels = [];
+      const labels = [];
 
-  for (let i = 1; i <= order.count; i++) {
-    const itemWeight = (weightsList[i - 1] ?? weightsList[0] ?? 1).toFixed(2);
+      for (let i = 1; i <= order.count; i++) {
+        const itemWeight = (weightsList[i - 1] ?? weightsList[0] ?? 1).toFixed(2);
 
-    const soap = `<?xml version="1.0" encoding="utf-8"?>
-<soap:Envelope
-  xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
-  xmlns:imt="http://www.cargonet.software">
-  <soap:Header>
-    <imt:UserCredentials>
-      <imt:userid>${config.login}</imt:userid>
-      <imt:password>${config.password}</imt:password>
-    </imt:UserCredentials>
-  </soap:Header>
-  <soap:Body>
-    <CreateShipmentWithLabelsBc xmlns="http://www.cargonet.software">
-      <request>
-        <customer_countrycode>250</customer_countrycode>
-        <customer_centernumber>${config.agencyCode}</customer_centernumber>
-        <customer_number>${config.contractNumber}</customer_number>
-        <receiveraddress>
-          <name>${escapeXml(order.destName)}</name>
-          <street>${escapeXml(order.destAddress)}</street>
-          ${order.destAddress2 ? `<houseNo>${escapeXml(order.destAddress2)}</houseNo>` : ""}
-          <countryPrefix>FR</countryPrefix>
-          <zipCode>${order.destZip}</zipCode>
-          <city>${escapeXml(order.destCity)}</city>
-        </receiveraddress>
-        <receiverinfo>
-          <contact>
-            <type>phone</type>
-            <value>${order.destPhone}</value>
-          </contact>
-        </receiverinfo>
-        <shipperaddress>
-          <name>${escapeXml(config.senderName)}</name>
-          <street>${escapeXml(config.senderAddress)}</street>
-          <countryPrefix>FR</countryPrefix>
-          <zipCode>${config.senderZip}</zipCode>
-          <city>${escapeXml(config.senderCity)}</city>
-        </shipperaddress>
-        <services>
-          <contact>
-            <type>predict</type>
-            <value>${order.destPhone}</value>
-          </contact>
-        </services>
-        <weight>${itemWeight}</weight>
-        <shippingdate>${shippingDate}</shippingdate>
-        <referencenumber>${escapeXml(order.orderName)}</referencenumber>
-        <reference2>${escapeXml(config.senderName2.toUpperCase().replace(/\s/g,"_"))}_${order.orderName.replace("#","")}</reference2>
-        <labelType>
-          <type>PDF</type>
-          <format>A6</format>
-        </labelType>
-      </request>
-    </CreateShipmentWithLabelsBc>
-  </soap:Body>
-</soap:Envelope>`;
+        const soap = `<?xml version="1.0" encoding="utf-8"?>
+    <soap:Envelope
+      xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
+      xmlns:imt="http://www.cargonet.software">
+      <soap:Header>
+        <imt:UserCredentials>
+          <imt:userid>${config.login}</imt:userid>
+          <imt:password>${config.password}</imt:password>
+        </imt:UserCredentials>
+      </soap:Header>
+      <soap:Body>
+        <CreateShipmentWithLabelsBc xmlns="http://www.cargonet.software">
+          <request>
+            <customer_countrycode>250</customer_countrycode>
+            <customer_centernumber>${config.agencyCode}</customer_centernumber>
+            <customer_number>${config.contractNumber}</customer_number>
+            <receiveraddress>
+              <name>${escapeXml(order.destName)}</name>
+              <street>${escapeXml(order.destAddress)}</street>
+              ${order.destAddress2 ? `<houseNo>${escapeXml(order.destAddress2)}</houseNo>` : ""}
+              <countryPrefix>FR</countryPrefix>
+              <zipCode>${order.destZip}</zipCode>
+              <city>${escapeXml(order.destCity)}</city>
+            </receiveraddress>
+            <receiverinfo>
+              <contact>
+                <type>phone</type>
+                <value>${order.destPhone}</value>
+              </contact>
+            </receiverinfo>
+            <shipperaddress>
+              <name>${escapeXml(config.senderName)}</name>
+              <street>${escapeXml(config.senderAddress)}</street>
+              <countryPrefix>FR</countryPrefix>
+              <zipCode>${config.senderZip}</zipCode>
+              <city>${escapeXml(config.senderCity)}</city>
+            </shipperaddress>
+            <services>
+              <contact>
+                <type>predict</type>
+                <value>${order.destPhone}</value>
+              </contact>
+            </services>
+            <weight>${itemWeight}</weight>
+            <shippingdate>${shippingDate}</shippingdate>
+            <!-- ICI : Ref 1 -->
+            <referencenumber>${escapeXml(order.ref1 || order.orderName)}</referencenumber>
+            <!-- Ref 2 : expéditeur + n° commande -->
+            <reference2>${escapeXml(
+              (config.senderName2 || "EXPEDITEUR")
+                .toUpperCase()
+                .replace(/\s/g,"_")
+            )}_${order.orderName.replace("#","")}</reference2>
+            <labelType>
+              <type>PDF</type>
+              <format>A6</format>
+            </labelType>
+          </request>
+        </CreateShipmentWithLabelsBc>
+      </soap:Body>
+    </soap:Envelope>`;
 
     const response = await fetch(WS_URL, {
       method: "POST",
