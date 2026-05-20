@@ -24,19 +24,9 @@ export async function loader({ request }) {
   const weights      = url.searchParams.get("weights")      || "1";
   const skusParam    = url.searchParams.get("skus")         || "";
   const titlesParam  = url.searchParams.get("titles")       || "";
+
   const skusList   = decodeURIComponent(String(skusParam  || "")).split("|");
   const titlesList = decodeURIComponent(String(titlesParam|| "")).split("|");
-
-  console.log("skus reçus:", skusParam);
-  console.log("titles reçus:", titlesParam);
-  console.log("skusList:", skusList);
-  console.log("titlesList:", titlesList);
-  console.log("titles reçus:", titlesParam);
-  console.log("titlesList:", titlesParam.split("-").map(t => decodeURIComponent(t)));
-
-  const ref1 = skusList.length > 0
-    ? `${skusList[0]} - ${titlesList[0] || ""}`.trim()
-    : (titlesList[0] || orderName);
 
   const config = {
     login:          process.env.DPD_LOGIN,
@@ -51,22 +41,23 @@ export async function loader({ request }) {
   };
 
   const isMock = !config.login || !config.password;
-  console.log("isMock:", isMock, "login:", config.login ? "SET" : "EMPTY");
 
   let labels = [];
 
   if (!isMock) {
     try {
       labels = await callDpdEprint(config, {
-        orderName, count, destName, destAddress, destAddress2, destZip, destCity, destPhone, weights, ref1,
+        orderName, count, destName, destAddress, destAddress2,
+        destZip, destCity, destPhone, weights, skusParam, titlesParam,
       });
     } catch (e) {
-      console.error("Erreur EPrint:", e);
       console.error("Erreur EPrint:", e.message);
-      labels = buildMockLabels(count, orderName, destName, destAddress, destAddress2, destZip, destCity, destPhone, weights, skusParam, titlesParam);
+      labels = buildMockLabels(count, orderName, destName, destAddress, destAddress2,
+        destZip, destCity, destPhone, weights, skusParam, titlesParam);
     }
   } else {
-    labels = buildMockLabels(count, orderName, destName, destAddress, destAddress2, destZip, destCity, destPhone, weights, skusParam, titlesParam);
+    labels = buildMockLabels(count, orderName, destName, destAddress, destAddress2,
+      destZip, destCity, destPhone, weights, skusParam, titlesParam);
   }
 
   console.log("LABELS BUILT:", JSON.stringify(labels.map(l => ({i: l.index, sku: l.sku, title: l.title}))));
@@ -82,77 +73,80 @@ export async function loader({ request }) {
 }
 
 async function callDpdEprint(config, order) {
-      const WS_URL = "https://e-station.cargonet.software/dpd-eprintwebservice/eprintwebservice.asmx";
-      const shippingDate = new Date().toLocaleDateString("fr-FR").split(".").join(".");
+  const WS_URL = "https://e-station.cargonet.software/dpd-eprintwebservice/eprintwebservice.asmx";
+  const shippingDate = new Date().toLocaleDateString("fr-FR").split("/").join(".");
 
-      const weightsList = String(order.weights || "1").split(",").map(w => parseFloat(w) || 0);
+  const weightsList = String(order.weights || "1").split(",").map(w => parseFloat(w) || 0);
+  const skusList    = decodeURIComponent(String(order.skusParam   || "")).split("|");
+  const titlesList  = decodeURIComponent(String(order.titlesParam || "")).split("|");
 
-      const labels = [];
+  const labels = [];
 
-      for (let i = 1; i <= order.count; i++) {
-        const itemWeight = (weightsList[i - 1] ?? weightsList[0] ?? 1).toFixed(2);
+  for (let i = 1; i <= order.count; i++) {
+    const itemWeight = (weightsList[i - 1] ?? weightsList[0] ?? 1).toFixed(2);
+    const itemSku    = skusList[i - 1]   ?? "";
+    const itemTitle  = titlesList[i - 1] ?? "";
+    const ref1       = itemSku ? `${itemSku} - ${itemTitle}` : (itemTitle || order.orderName);
 
-        const soap = `<?xml version="1.0" encoding="utf-8"?>
-    <soap:Envelope
-      xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
-      xmlns:imt="http://www.cargonet.software">
-      <soap:Header>
-        <imt:UserCredentials>
-          <imt:userid>${config.login}</imt:userid>
-          <imt:password>${config.password}</imt:password>
-        </imt:UserCredentials>
-      </soap:Header>
-      <soap:Body>
-        <CreateShipmentWithLabelsBc xmlns="http://www.cargonet.software">
-          <request>
-            <customer_countrycode>250</customer_countrycode>
-            <customer_centernumber>${config.agencyCode}</customer_centernumber>
-            <customer_number>${config.contractNumber}</customer_number>
-            <receiveraddress>
-              <name>${escapeXml(order.destName)}</name>
-              <street>${escapeXml(order.destAddress)}</street>
-              ${order.destAddress2 ? `<houseNo>${escapeXml(order.destAddress2)}</houseNo>` : ""}
-              <countryPrefix>FR</countryPrefix>
-              <zipCode>${order.destZip}</zipCode>
-              <city>${escapeXml(order.destCity)}</city>
-            </receiveraddress>
-            <receiverinfo>
-              <contact>
-                <type>phone</type>
-                <value>${order.destPhone}</value>
-              </contact>
-            </receiverinfo>
-            <shipperaddress>
-              <name>${escapeXml(config.senderName)}</name>
-              <street>${escapeXml(config.senderAddress)}</street>
-              <countryPrefix>FR</countryPrefix>
-              <zipCode>${config.senderZip}</zipCode>
-              <city>${escapeXml(config.senderCity)}</city>
-            </shipperaddress>
-            <services>
-              <contact>
-                <type>predict</type>
-                <value>${order.destPhone}</value>
-              </contact>
-            </services>
-            <weight>${itemWeight}</weight>
-            <shippingdate>${shippingDate}</shippingdate>
-            <!-- ICI : Ref 1 -->
-            <referencenumber>${escapeXml(order.ref1 || order.orderName)}</referencenumber>
-            <!-- Ref 2 : expéditeur + n° commande -->
-            <reference2>${escapeXml(
-              (config.senderName2 || "EXPEDITEUR")
-                .toUpperCase()
-                .replace(/\s/g,"_")
-            )}_${order.orderName.replace("#","")}</reference2>
-            <labelType>
-              <type>PDF</type>
-              <format>A6</format>
-            </labelType>
-          </request>
-        </CreateShipmentWithLabelsBc>
-      </soap:Body>
-    </soap:Envelope>`;
+    const soap = `<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope
+  xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
+  xmlns:imt="http://www.cargonet.software">
+  <soap:Header>
+    <imt:UserCredentials>
+      <imt:userid>${config.login}</imt:userid>
+      <imt:password>${config.password}</imt:password>
+    </imt:UserCredentials>
+  </soap:Header>
+  <soap:Body>
+    <CreateShipmentWithLabelsBc xmlns="http://www.cargonet.software">
+      <request>
+        <customer_countrycode>250</customer_countrycode>
+        <customer_centernumber>${config.agencyCode}</customer_centernumber>
+        <customer_number>${config.contractNumber}</customer_number>
+        <receiveraddress>
+          <name>${escapeXml(order.destName)}</name>
+          <street>${escapeXml(order.destAddress)}</street>
+          ${order.destAddress2 ? `<houseNo>${escapeXml(order.destAddress2)}</houseNo>` : ""}
+          <countryPrefix>FR</countryPrefix>
+          <zipCode>${order.destZip}</zipCode>
+          <city>${escapeXml(order.destCity)}</city>
+        </receiveraddress>
+        <receiverinfo>
+          <contact>
+            <type>phone</type>
+            <value>${order.destPhone}</value>
+          </contact>
+        </receiverinfo>
+        <shipperaddress>
+          <name>${escapeXml(config.senderName)}</name>
+          <street>${escapeXml(config.senderAddress)}</street>
+          <countryPrefix>FR</countryPrefix>
+          <zipCode>${config.senderZip}</zipCode>
+          <city>${escapeXml(config.senderCity)}</city>
+        </shipperaddress>
+        <services>
+          <contact>
+            <type>predict</type>
+            <value>${order.destPhone}</value>
+          </contact>
+        </services>
+        <weight>${itemWeight}</weight>
+        <shippingdate>${shippingDate}</shippingdate>
+        <referencenumber>${escapeXml(ref1)}</referencenumber>
+        <reference2>${escapeXml(
+          (config.senderName2 || config.senderName || "EXPEDITEUR")
+            .toUpperCase()
+            .replace(/\s/g, "_")
+        )}_${order.orderName.replace("#", "")}</reference2>
+        <labelType>
+          <type>PDF</type>
+          <format>A6</format>
+        </labelType>
+      </request>
+    </CreateShipmentWithLabelsBc>
+  </soap:Body>
+</soap:Envelope>`;
 
     const response = await fetch(WS_URL, {
       method: "POST",
@@ -183,6 +177,8 @@ async function callDpdEprint(config, order) {
       destCity:       order.destCity,
       destPhone:      order.destPhone,
       weight:         itemWeight,
+      sku:            itemSku,
+      title:          itemTitle,
       labelPdf:       labelMatch?.[1]?.trim() || null,
       trackingNumber: trackMatch?.[1]?.trim() || null,
       fromApi:        true,
@@ -201,11 +197,11 @@ function escapeXml(str) {
     .replace(/'/g, "&apos;");
 }
 
-function buildMockLabels(count, orderName, destName, destAddress, destAddress2, destZip, destCity, destPhone, weights, skusParam, titlesParam) {
-  const weightsList = String(weights || "1").split(",").map(w => parseFloat(w) || 0);
-  const skusList   = decodeURIComponent(String(skusParam  || "")).split("|");
-  const titlesList = decodeURIComponent(String(titlesParam|| "")).split("|");
-
+function buildMockLabels(count, orderName, destName, destAddress, destAddress2,
+  destZip, destCity, destPhone, weights, skusParam, titlesParam) {
+  const weightsList = String(weights    || "1").split(",").map(w => parseFloat(w) || 0);
+  const skusList    = decodeURIComponent(String(skusParam   || "")).split("|");
+  const titlesList  = decodeURIComponent(String(titlesParam || "")).split("|");
   return Array.from({ length: count }, (_, i) => ({
     orderName, index: i + 1, total: count,
     destName, destAddress, destAddress2, destZip, destCity, destPhone,
@@ -219,16 +215,13 @@ function buildMockLabels(count, orderName, destName, destAddress, destAddress2, 
 function generateBarcodeSVG(value) {
   const seed = value.split('').reduce((a, c, i) => a + c.charCodeAt(0) * (i + 1), 0);
   const rng  = (i) => ((seed * 9301 + 49297 * (i + 1)) % 233280) / 233280;
-
   const bars = [];
   let x = 4;
   const h = 150;
-
   [2,1,1,4,1,2].forEach((w, i) => {
     if (i % 2 === 0) bars.push(`<rect x="${x}" y="0" width="${w*1.5}" height="${h}" fill="black"/>`);
     x += w * 1.5;
   });
-
   for (let i = 0; i < value.length; i++) {
     const widths = [
       1 + Math.floor(rng(i*6)*3),   1 + Math.floor(rng(i*6+1)*2),
@@ -240,12 +233,10 @@ function generateBarcodeSVG(value) {
       x += w * 1.5;
     });
   }
-
   [2,3,3,1,1,1,2].forEach((w, i) => {
     if (i % 2 === 0) bars.push(`<rect x="${x}" y="0" width="${w*1.5}" height="${h}" fill="black"/>`);
     x += w * 1.5;
   });
-
   x += 4;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="${h+14}" viewBox="0 0 ${x} ${h+14}" preserveAspectRatio="none">
     ${bars.join('')}
@@ -257,7 +248,6 @@ function renderLabels(labels, config, isMock) {
   const agencyCode     = config.agencyCode     || "038";
   const contractNumber = config.contractNumber || "12623";
 
-  // Si l'API a retourné des PDFs — on les affiche directement
   if (!isMock && labels.some(l => l.labelPdf)) {
     if (labels.length === 1 && labels[0].labelPdf) {
       return `<!DOCTYPE html><html><head><meta charset="utf-8"/>
@@ -266,8 +256,7 @@ function renderLabels(labels, config, isMock) {
         <embed src="data:application/pdf;base64,${labels[0].labelPdf}" type="application/pdf"/>
         </body></html>`;
     }
-    // Plusieurs PDFs — on les concatène visuellement
-    const embeds = labels.map((l, i) => l.labelPdf
+    const embeds = labels.map(l => l.labelPdf
       ? `<div style="page-break-after:always">
            <embed src="data:application/pdf;base64,${l.labelPdf}" type="application/pdf" width="100%" height="400px"/>
          </div>`
@@ -277,7 +266,6 @@ function renderLabels(labels, config, isMock) {
       </head><body>${embeds}</body></html>`;
   }
 
-  // Sinon — rendu mock HTML
   return `<!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -343,16 +331,15 @@ function renderLabels(labels, config, isMock) {
     .barcode-bottom { padding: 2mm 3mm 1.5mm; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     .barcode-svg-wrap { width: 90%; }
     .barcode-text { font-size: 6pt; color: #444; margin-top: 1.5mm; text-align: center; }
-    .tracking-link { font-size: 6pt; margin-top: 1mm; text-align: center; }
-    .tracking-link a { color: #E30613; text-decoration: none; }
   </style>
 </head>
 <body>
-  ${labels.map(({ orderName, index, total, destName, destAddress, destAddress2, destZip, destCity, destPhone, weight, trackingNumber, sku, title }) => {
-    const fakeTrack    = trackingNumber || `1038${Math.floor(Math.random()*9000+1000)}${Math.floor(Math.random()*9000+1000)}${Math.floor(Math.random()*90+10)}C`;
-    const fakeRouting  = `FR-DPD-${Math.floor(Math.random()*9000+1000)}-${Math.floor(Math.random()*900+100)}-FR-${config.senderZip || "38120"}`;
-    const fakeSort     = `${agencyCode}SA`;
-    const trackingUrl  = `http://www.dpd.fr/tracer_${orderName.replace("#","")}_${agencyCode}${contractNumber}`;
+  ${labels.map(({ orderName, index, total, destName, destAddress, destAddress2,
+    destZip, destCity, destPhone, weight, trackingNumber, sku, title }) => {
+    const fakeTrack   = trackingNumber || `1038${Math.floor(Math.random()*9000+1000)}${Math.floor(Math.random()*9000+1000)}${Math.floor(Math.random()*90+10)}C`;
+    const fakeRouting = `FR-DPD-${Math.floor(Math.random()*9000+1000)}-${Math.floor(Math.random()*900+100)}-FR-${config.senderZip || "38120"}`;
+    const fakeSort    = `${agencyCode}SA`;
+    const ref1Display = sku ? `${sku} - ${title}` : (title || orderName.replace("#", ""));
 
     return `
     <div class="label">
@@ -361,8 +348,7 @@ function renderLabels(labels, config, isMock) {
         <div class="header-dest">
           <div class="dest-name">${destName}</div>
           <div class="dest-address">
-            ${destAddress}<br>
-            ${destAddress2}<br>
+            ${destAddress}${destAddress2 ? `<br>${destAddress2}` : ""}<br>
             <strong>${destZip}</strong><br>
             <strong style="font-size:11pt;">${destCity.toUpperCase()}</strong>
           </div>
@@ -385,8 +371,8 @@ function renderLabels(labels, config, isMock) {
       <div class="middle">
         <div class="middle-left">
           <div class="row"><span class="lbl">Contact</span><span>Tél ${destPhone || "—"}</span></div>
-          <div class="row"><span class="lbl">Ref 1</span><span>${sku ? `${sku} - ` : ""}${title || orderName.replace("#","")}</span></div>
-          <div class="row"><span class="lbl">Ref 2</span><span>${(config.senderName2||"EXPEDITEUR").toUpperCase().replace(/\s/g,"_")}_${orderName.replace("#","")}</span></div>
+          <div class="row"><span class="lbl">Ref 1</span><span>${ref1Display}</span></div>
+          <div class="row"><span class="lbl">Ref 2</span><span>${(config.senderName2 || config.senderName || "EXPEDITEUR").toUpperCase().replace(/\s/g,"_")}_${orderName.replace("#","")}</span></div>
           <div class="row" style="margin-top:1mm;"><span class="lbl">Info</span><span style="font-style:italic;">Predict</span></div>
         </div>
         <div class="middle-right">
@@ -411,9 +397,6 @@ function renderLabels(labels, config, isMock) {
         <div class="barcode-text">
           ${new Date().toLocaleDateString("fr-FR")} ${new Date().toLocaleTimeString("fr-FR")} · Commande : ${orderName} · Colis : ${index}/${total}
         </div>
-        <!--<div class="tracking-link">
-          <a href="${trackingUrl}">${trackingUrl}</a>
-        </div>-->
       </div>
     </div>`;
   }).join("")}
