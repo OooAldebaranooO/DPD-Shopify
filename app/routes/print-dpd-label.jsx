@@ -24,8 +24,8 @@ export async function loader({ request }) {
   const weights      = url.searchParams.get("weights")      || "1";
   const skusParam    = url.searchParams.get("skus")         || "";
   const titlesParam  = url.searchParams.get("titles")       || "";
-  const skusList   = String(skusParam  || "").split("-").map(s => decodeURIComponent(s));
-  const titlesList = String(titlesParam|| "").split("-").map(t => decodeURIComponent(t));
+  const skusList   = String(skusParam  || "").split("|").map(s => decodeURIComponent(s));
+  const titlesList = String(titlesParam|| "").split("|").map(t => decodeURIComponent(t));
 
   console.log("skus reçus:", skusParam);
   console.log("titles reçus:", titlesParam);

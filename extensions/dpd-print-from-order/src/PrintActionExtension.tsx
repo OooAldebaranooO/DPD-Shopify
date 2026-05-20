@@ -108,8 +108,8 @@ function Extension() {
         });
 
         const weightsParam = activeItems.map((i: any) => i.weight).join(",");
-        const skusParam    = activeItems.map((i: any) => encodeURIComponent(i.sku)).join("-");
-        const titlesParam  = activeItems.map((i: any) => encodeURIComponent(i.title)).join("-");
+        const skusParam    = activeItems.map((i: any) => encodeURIComponent(i.sku)).join("|");
+        const titlesParam  = activeItems.map((i: any) => encodeURIComponent(i.title)).join("|");
 
         const ref1 = activeItems
           .map((i: any) => (i.sku ? `${i.sku} - ${i.title}` : i.title))
@@ -127,8 +127,8 @@ function Extension() {
           `&destCity=${encodeURIComponent(addr?.city || "")}` +
           `&destPhone=${encodeURIComponent(addr?.phone || "")}` +
           `&weights=${encodeURIComponent(weightsParam)}` +
-          `&skus=${skusParam}` +
-          `&titles=${titlesParam}` +
+          `&skus=${encodeURIComponent(skusParam)}` +
+          `&titles=${encodeURIComponent(titlesParam)}` +
           `&ref1=${encodeURIComponent(ref1)}`;
 
         setPrintUrl(url);
