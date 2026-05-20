@@ -27,7 +27,6 @@ export async function loader({ request }) {
     login:         process.env.DPD_LOGIN,
     senderName:    process.env.DPD_SENDER_NAME,
     senderAddress: process.env.DPD_SENDER_ADDRESS,
-    senderAddress2: process.env.DPD_SENDER_ADDRESS2,
     senderZip:     process.env.DPD_SENDER_ZIP,
     senderCity:    process.env.DPD_SENDER_CITY,
     agencyCode:    process.env.DPD_AGENCY_CODE,
@@ -54,7 +53,7 @@ function generateBarcodeSVG(value) {
 
   const bars = [];
   let x = 4;
-  const h = 50;
+  const h = 180;
 
   // Start
   [2, 1, 1, 4, 1, 2].forEach((w, i) => {
@@ -221,7 +220,7 @@ function renderLabels(labels, config) {
   </style>
 </head>
 <body>
-  ${labels.map(({ orderName, index, total, destName, destAddress, destZip, destCity, destPhone, weight }) => {
+  ${labels.map(({ orderName, index, total, destName, destAddress, destAddress2, destZip, destCity, destPhone, weight }) => {
     const fakeTrack = `1038${Math.floor(Math.random()*9000+1000)}${Math.floor(Math.random()*9000+1000)}${Math.floor(Math.random()*90+10)}C`;
     const fakeRouting = `FR-DPD-${Math.floor(Math.random()*9000+1000)}-${Math.floor(Math.random()*900+100)}-FR-${config.senderZip || "38120"}`;
     const fakeSort = `${agencyCode}SA`;
@@ -233,6 +232,7 @@ function renderLabels(labels, config) {
           <div class="dest-name">${destName}</div>
           <div class="dest-address">
             ${destAddress}<br>
+            ${destAddress2}<br>
             <strong>${destZip}</strong><br>
             <strong style="font-size:11pt;">${destCity.toUpperCase()}</strong>
           </div>
@@ -258,7 +258,8 @@ function renderLabels(labels, config) {
         <div class="middle-left">
           <div class="row"><span class="lbl">Contact</span><span>Tél ${destPhone || "—"}</span></div>
           <div class="row"><span class="lbl">Ref 1</span><span>${orderName.replace("#", "")}</span></div>
-          <div class="row"><span class="lbl">Ref 2</span><span>${(config.senderName || "EXPEDITEUR").toUpperCase().replace(/\s/g,"_")}_${orderName.replace("#","")}</span></div>
+          <!--<div class="row"><span class="lbl">Ref 2</span><span>${(config.senderName || "EXPEDITEUR").toUpperCase().replace(/\s/g,"_")}_${orderName.replace("#","")}</span></div>-->
+          <div class="row"><span class="lbl">Ref 2</span><span>LIVEDECO_95693</span></div>
           <div class="row" style="margin-top:1mm;"><span class="lbl">Info</span><span style="font-style:italic;">Predict</span></div>
         </div>
         <div class="middle-right">

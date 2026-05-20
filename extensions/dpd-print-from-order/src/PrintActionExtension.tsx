@@ -69,10 +69,7 @@ function Extension() {
 
         const items = order.lineItems?.edges || [];
 
-        // Nombre total d’étiquettes (ce que tu faisais déjà)
-        const totalLabels = items.reduce((sum: number, item: any) =>
-          sum + (item?.node?.quantity || 0), 0,
-        );
+        const totalLabels = items.length;
 
         // Calcul du poids total en grammes
         const totalWeightGrams = items.reduce((sum: number, item: any) => {
@@ -122,7 +119,7 @@ function Extension() {
           `&count=${totalLabels}` +
           `&destName=${encodeURIComponent(destName)}` +
           `&destAddress=${encodeURIComponent(addr?.address1 || "")}` +
-          `&destAddress=${encodeURIComponent(addr?.address2 || "")}` +
+          `&destAddress2=${encodeURIComponent(addr?.address2 || "")}` +
           `&destZip=${encodeURIComponent(addr?.zip || "")}` +
           `&destCity=${encodeURIComponent(addr?.city || "")}` +
           `&destPhone=${encodeURIComponent(addr?.phone || "")}` +
