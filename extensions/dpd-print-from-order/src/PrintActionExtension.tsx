@@ -31,6 +31,7 @@ function Extension() {
                   firstName
                   lastName
                   address1
+                  address2
                   zip
                   city
                   phone
@@ -121,6 +122,7 @@ function Extension() {
           `&count=${totalLabels}` +
           `&destName=${encodeURIComponent(destName)}` +
           `&destAddress=${encodeURIComponent(addr?.address1 || "")}` +
+          `&destAddress=${encodeURIComponent(addr?.address2 || "")}` +
           `&destZip=${encodeURIComponent(addr?.zip || "")}` +
           `&destCity=${encodeURIComponent(addr?.city || "")}` +
           `&destPhone=${encodeURIComponent(addr?.phone || "")}` +

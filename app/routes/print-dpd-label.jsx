@@ -17,6 +17,7 @@ export async function loader({ request }) {
   const count       = Number(url.searchParams.get("count") || "1");
   const destName    = url.searchParams.get("destName")    || "NOM DESTINATAIRE";
   const destAddress = url.searchParams.get("destAddress") || "";
+  const destAddress2 = url.searchParams.get("destAddress2") || "";
   const destZip     = url.searchParams.get("destZip")     || "";
   const destCity    = url.searchParams.get("destCity")    || "";
   const destPhone   = url.searchParams.get("destPhone")   || "";
@@ -26,6 +27,7 @@ export async function loader({ request }) {
     login:         process.env.DPD_LOGIN,
     senderName:    process.env.DPD_SENDER_NAME,
     senderAddress: process.env.DPD_SENDER_ADDRESS,
+    senderAddress2: process.env.DPD_SENDER_ADDRESS2,
     senderZip:     process.env.DPD_SENDER_ZIP,
     senderCity:    process.env.DPD_SENDER_CITY,
     agencyCode:    process.env.DPD_AGENCY_CODE,
@@ -33,7 +35,7 @@ export async function loader({ request }) {
 
   const labels = Array.from({ length: count }, (_, i) => ({
     orderName, index: i + 1, total: count,
-    destName, destAddress, destZip, destCity, destPhone, weight,
+    destName, destAddress, destAddress2, destZip, destCity, destPhone, weight,
   }));
 
   return new Response(renderLabels(labels, config), {
@@ -241,11 +243,13 @@ function renderLabels(labels, config) {
             <div class="label-text">Expéditeur</div>
             <strong>${config.senderName || "EXPÉDITEUR"}</strong><br>
             ${config.senderAddress || ""}<br>
+            ${config.senderAddress2 || ""}<br>
             ${config.senderZip || ""} ${config.senderCity || ""}
           </div>
           <div class="header-right-bottom">
             <div class="label-text">DPD-Etablissement ${agencyCode}</div>
-            Adresse dépôt DPD
+            215 rue Grande Batie<br>
+            38430 Moirans
           </div>
         </div>
         <img src="https://dpd-shopify-oken.vercel.app/dpd-logo.png" alt="DPD" class="dpd-logo" />
