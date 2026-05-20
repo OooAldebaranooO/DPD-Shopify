@@ -24,8 +24,8 @@ export async function loader({ request }) {
   const weights      = url.searchParams.get("weights")      || "1";
   const skusParam    = url.searchParams.get("skus")         || "";
   const titlesParam  = url.searchParams.get("titles")       || "";
-  const skusList   = String(skusParam  || "").split("|").map(s => decodeURIComponent(s));
-  const titlesList = String(titlesParam|| "").split("|").map(t => decodeURIComponent(t));
+  const skusList   = decodeURIComponent(String(skusParam  || "")).split("|");
+  const titlesList = decodeURIComponent(String(titlesParam|| "")).split("|");
 
   console.log("skus reçus:", skusParam);
   console.log("titles reçus:", titlesParam);
@@ -201,8 +201,9 @@ function escapeXml(str) {
 
 function buildMockLabels(count, orderName, destName, destAddress, destAddress2, destZip, destCity, destPhone, weights, skusParam, titlesParam) {
   const weightsList = String(weights || "1").split(",").map(w => parseFloat(w) || 0);
-  const skusList   = String(skusParam  || "").split("|").map(s => decodeURIComponent(s));
-  const titlesList = String(titlesParam|| "").split("|").map(t => decodeURIComponent(t));
+  const skusList   = decodeURIComponent(String(skusParam  || "")).split("|");
+  const titlesList = decodeURIComponent(String(titlesParam|| "")).split("|");
+
   return Array.from({ length: count }, (_, i) => ({
     orderName, index: i + 1, total: count,
     destName, destAddress, destAddress2, destZip, destCity, destPhone,
