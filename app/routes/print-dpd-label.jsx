@@ -373,11 +373,11 @@ function renderLabels(labels, config, isMock) {
       <div class="barcode-bottom">
         <div class="barcode-svg-wrap">${generateBarcodeSVG(fakeTrack)}</div>
         <div class="barcode-text">
-          ${new Date().toLocaleDateString("fr-FR")} ${new Date().toLocaleTimeString("fr-FR")} · EPrintWebservice · ${orderName} · Colis ${index}/${total}
+          ${new Date().toLocaleDateString("fr-FR")} ${new Date().toLocaleTimeString("fr-FR")} · Commande : ${orderName} · Colis : ${index}/${total}
         </div>
-        <div class="tracking-link">
+        <!--<div class="tracking-link">
           <a href="${trackingUrl}">${trackingUrl}</a>
-        </div>
+        </div>-->
       </div>
     </div>`;
   }).join("")}
