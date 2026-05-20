@@ -340,8 +340,7 @@ async function renderLabels(labels, config, isMock) {
     }
     .header-separator span {
       writing-mode: vertical-rl;
-      transform: rotate(180deg);
-      font-size: 5pt;
+      font-size: 7pt;
       letter-spacing: 1px;
     }
     .header-right { display: grid; grid-template-rows: 1fr 1fr; }
@@ -407,7 +406,7 @@ async function renderLabels(labels, config, isMock) {
       font-weight: 700;
       padding: 0.5mm 3mm;
     }
-    .routing-code { font-size: 8pt; font-weight: 700; text-align: center; }
+    .routing-code { font-size: 14pt; font-weight: 700; text-align: center; }
     .sort-code {
       background: #000;
       color: #fff;
@@ -506,7 +505,9 @@ async function renderLabels(labels, config, isMock) {
         </div>
       </div>
       <div class="tracking">
-        <div class="tracking-number">${fakeTrack}</div>
+        <div class="tracking-number">
+          <span style="font-size:20pt; font-weight:900;">1038</span><span style="font-size:14pt; font-weight:700;">${fakeTrack.slice(4)}</span>
+        </div>
         <div class="service-code"><div class="code">D-B2C</div><div class="lbl">Service</div></div>
       </div>
       <div class="footer-codes">
