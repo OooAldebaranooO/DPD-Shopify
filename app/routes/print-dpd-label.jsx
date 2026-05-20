@@ -41,17 +41,14 @@ export async function loader({ request }) {
   if (!isMock) {
     try {
       labels = await callDpdEprint(config, {
-        orderName, count, destName, destAddress, destAddress2,
-        destZip, destCity, destPhone, weight,
+        orderName, count, destName, destAddress, destAddress2, destZip, destCity, destPhone, weight,
       });
     } catch (e) {
       console.error("Erreur EPrint:", e);
-      labels = buildMockLabels(count, orderName, destName, destAddress,
-        destZip, destCity, destPhone, weight);
+      labels = buildMockLabels(count, orderName, destName, destAddress, destAddress2, destZip, destCity, destPhone, weight);
     }
   } else {
-    labels = buildMockLabels(count, orderName, destName, destAddress,
-      destZip, destCity, destPhone, weight);
+    labels = buildMockLabels(count, orderName, destName, destAddress, destAddress2, destZip, destCity, destPhone, weight);
   }
 
   return new Response(renderLabels(labels, config, isMock), {
@@ -91,6 +88,7 @@ async function callDpdEprint(config, order) {
         <receiveraddress>
           <name>${escapeXml(order.destName)}</name>
           <street>${escapeXml(order.destAddress)}</street>
+          <street>${escapeXml(order.destAddress2)}</street>
           <countryPrefix>FR</countryPrefix>
           <zipCode>${order.destZip}</zipCode>
           <city>${escapeXml(order.destCity)}</city>
@@ -152,6 +150,7 @@ async function callDpdEprint(config, order) {
       total:       order.count,
       destName:    order.destName,
       destAddress: order.destAddress,
+      destAddress2: order.destAddress2,
       destZip:     order.destZip,
       destCity:    order.destCity,
       destPhone:   order.destPhone,
@@ -174,10 +173,10 @@ function escapeXml(str) {
     .replace(/'/g, "&apos;");
 }
 
-function buildMockLabels(count, orderName, destName, destAddress, destZip, destCity, destPhone, weight) {
+function buildMockLabels(count, orderName, destName, destAddress, destAddress2, destZip, destCity, destPhone, weight) {
   return Array.from({ length: count }, (_, i) => ({
     orderName, index: i + 1, total: count,
-    destName, destAddress, destZip, destCity, destPhone, weight,
+    destName, destAddress, destAddress2, destZip, destCity, destPhone, weight,
     labelPdf: null, trackingNumber: null, fromApi: false,
   }));
 }
@@ -188,7 +187,7 @@ function generateBarcodeSVG(value) {
 
   const bars = [];
   let x = 4;
-  const h = 50;
+  const h = 180;
 
   [2,1,1,4,1,2].forEach((w, i) => {
     if (i % 2 === 0) bars.push(`<rect x="${x}" y="0" width="${w*1.5}" height="${h}" fill="black"/>`);
@@ -313,7 +312,7 @@ function renderLabels(labels, config, isMock) {
   </style>
 </head>
 <body>
-  ${labels.map(({ orderName, index, total, destName, destAddress, destZip, destCity, destPhone, weight, trackingNumber }) => {
+  ${labels.map(({ orderName, index, total, destName, destAddress, destAddress2, destZip, destCity, destPhone, weight, trackingNumber }) => {
     const fakeTrack    = trackingNumber || `1038${Math.floor(Math.random()*9000+1000)}${Math.floor(Math.random()*9000+1000)}${Math.floor(Math.random()*90+10)}C`;
     const fakeRouting  = `FR-DPD-${Math.floor(Math.random()*9000+1000)}-${Math.floor(Math.random()*900+100)}-FR-${config.senderZip || "38120"}`;
     const fakeSort     = `${agencyCode}SA`;
@@ -327,6 +326,7 @@ function renderLabels(labels, config, isMock) {
           <div class="dest-name">${destName}</div>
           <div class="dest-address">
             ${destAddress}<br>
+            ${destAddress2}<br>
             <strong>${destZip}</strong><br>
             <strong style="font-size:11pt;">${destCity.toUpperCase()}</strong>
           </div>
