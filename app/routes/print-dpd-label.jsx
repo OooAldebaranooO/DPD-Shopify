@@ -21,7 +21,9 @@ export async function loader({ request }) {
   const destZip      = url.searchParams.get("destZip")      || "";
   const destCity     = url.searchParams.get("destCity")     || "";
   const destPhone    = url.searchParams.get("destPhone")    || "";
-  const weights       = url.searchParams.get("weights")       || "1";
+  const weights      = url.searchParams.get("weights")      || "1";
+  const skusParam    = url.searchParams.get("skus")         || "";
+  const titlesParam  = url.searchParams.get("titles")       || "";
 
   const config = {
     login:          process.env.DPD_LOGIN,
@@ -183,6 +185,8 @@ function buildMockLabels(count, orderName, destName, destAddress, destAddress2, 
     destName, destAddress, destAddress2, destZip, destCity, destPhone,
     weight: (weightsList[i] ?? weightsList[0] ?? 1).toFixed(2),
     labelPdf: null, trackingNumber: null, fromApi: false,
+    sku:   skusList[i] ?? "",
+    title: titlesList[i] ?? "",
   }));
 }
 
@@ -323,6 +327,8 @@ function renderLabels(labels, config, isMock) {
     const fakeRouting  = `FR-DPD-${Math.floor(Math.random()*9000+1000)}-${Math.floor(Math.random()*900+100)}-FR-${config.senderZip || "38120"}`;
     const fakeSort     = `${agencyCode}SA`;
     const trackingUrl  = `http://www.dpd.fr/tracer_${orderName.replace("#","")}_${agencyCode}${contractNumber}`;
+    const skusList   = skusParam.split(",").map(s => decodeURIComponent(s));
+    const titlesList = titlesParam.split(",").map(t => decodeURIComponent(t));
 
     return `
     <div class="label">
@@ -355,7 +361,7 @@ function renderLabels(labels, config, isMock) {
       <div class="middle">
         <div class="middle-left">
           <div class="row"><span class="lbl">Contact</span><span>Tél ${destPhone || "—"}</span></div>
-          <div class="row"><span class="lbl">Ref 1</span><span>${orderName.replace("#","")}</span></div>
+          <div class="row"><span class="lbl">Ref 1</span><span>${sku ? `${sku} - ` : ""}${title || orderName.replace("#","")}</span></div>
           <div class="row"><span class="lbl">Ref 2</span><span>${(config.senderName||"EXPEDITEUR").toUpperCase().replace(/\s/g,"_")}_${orderName.replace("#","")}</span></div>
           <div class="row" style="margin-top:1mm;"><span class="lbl">Info</span><span style="font-style:italic;">Predict</span></div>
         </div>

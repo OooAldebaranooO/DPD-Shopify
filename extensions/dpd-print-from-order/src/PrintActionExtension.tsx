@@ -41,8 +41,10 @@ function Extension() {
                     node {
                       quantity
                       currentQuantity
+                      title
                       variant {
                         id
+                        sku
                         inventoryItem {
                           measurement {
                             weight {
@@ -105,12 +107,6 @@ function Extension() {
           return sum + qty * weightInGrams;
         }, 0);
 
-        console.log("ITEMS WEIGHTS:", items.map((item: any) => ({
-          name: item?.node?.variant?.id,
-          weight: item?.node?.variant?.inventoryItem?.measurement?.weight,
-          qty: item?.node?.currentQuantity,
-        })));
-
         // Si DPD attend des kilos avec un nombre à virgule :
         const totalWeightKg = totalWeightGrams / 1000;
 
@@ -134,11 +130,16 @@ function Extension() {
               default:          weightKg = w.value; break;
             }
           }
-          return weightKg;
+          return {
+            weight: weightKg,
+            sku: item?.node?.variant?.sku || "",
+            title: item?.node?.title || "",
+          };
         });
 
-        // Passe les poids individuels dans l'URL
         const weightsParam = activeItems.join(",");
+        const skusParam     = activeItems.map((i: any) => encodeURIComponent(i.sku)).join(",");
+        const titlesParam   = activeItems.map((i: any) => encodeURIComponent(i.title)).join(",");
 
         const url = `https://dpd-shopify-oken.vercel.app/print-dpd-label` +
           `?orderName=${encodeURIComponent(order.name ?? "")}` +
@@ -149,7 +150,9 @@ function Extension() {
           `&destZip=${encodeURIComponent(addr?.zip || "")}` +
           `&destCity=${encodeURIComponent(addr?.city || "")}` +
           `&destPhone=${encodeURIComponent(addr?.phone || "")}` +
-          `&weights=${encodeURIComponent(weightsParam)}`; // ← plural, liste de poids
+          `&weights=${encodeURIComponent(weightsParam)}` +
+          `&skus=${encodeURIComponent(skusParam)}` +
+          `&titles=${encodeURIComponent(titlesParam)}`
 
         setPrintUrl(url);
       } catch (e) {
