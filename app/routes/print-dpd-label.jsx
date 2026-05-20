@@ -258,6 +258,7 @@ function renderLabels(labels, config, isMock) {
       border: 1px solid #000;
       page-break-after: always;
       display: flex; flex-direction: column; overflow: hidden;
+      margin-bottom: 50px;
     }
     .label:last-child { page-break-after: auto; }
     .mock-banner {
