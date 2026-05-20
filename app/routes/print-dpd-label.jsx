@@ -244,6 +244,44 @@ function generateBarcodeSVG(value) {
   </svg>`;
 }
 
+function generateQRCodeSVG(value) {
+  // QR code simplifié - matrice de modules générée depuis la valeur
+  const size = 21; // Version 1 QR = 21x21
+  const seed = value.split('').reduce((a, c, i) => a + c.charCodeAt(0) * (i + 1), 0);
+  const rng = (i) => ((seed * 1664525 + 1013904223 * (i + 1)) & 0x7fffffff) / 0x7fffffff;
+
+  // Génère une matrice pseudo-aléatoire mais déterministe
+  const matrix = Array.from({ length: size }, (_, row) =>
+    Array.from({ length: size }, (_, col) => {
+      // Finder patterns (coins)
+      if ((row < 7 && col < 7) || (row < 7 && col >= size - 7) || (row >= size - 7 && col < 7)) {
+        const r = Math.min(row, size - 1 - row, col, size - 1 - col);
+        if (row < 7 && col < 7) return (row === 0 || row === 6 || col === 0 || col === 6 || (row >= 2 && row <= 4 && col >= 2 && col <= 4)) ? 1 : 0;
+        if (row < 7 && col >= size - 7) { const c = col - (size - 7); return (row === 0 || row === 6 || c === 0 || c === 6 || (row >= 2 && row <= 4 && c >= 2 && c <= 4)) ? 1 : 0; }
+        if (row >= size - 7 && col < 7) { const r2 = row - (size - 7); return (r2 === 0 || r2 === 6 || col === 0 || col === 6 || (r2 >= 2 && r2 <= 4 && col >= 2 && col <= 4)) ? 1 : 0; }
+      }
+      // Timing patterns
+      if (row === 6 || col === 6) return (row + col) % 2 === 0 ? 1 : 0;
+      // Data modules
+      return rng(row * size + col) > 0.5 ? 1 : 0;
+    })
+  );
+
+  const moduleSize = 2;
+  const svgSize = size * moduleSize;
+  const modules = matrix.flatMap((row, r) =>
+    row.map((cell, c) => cell
+      ? `<rect x="${c * moduleSize}" y="${r * moduleSize}" width="${moduleSize}" height="${moduleSize}" fill="black"/>`
+      : ""
+    )
+  ).join("");
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${svgSize}" height="${svgSize}" viewBox="0 0 ${svgSize} ${svgSize}">
+    <rect width="${svgSize}" height="${svgSize}" fill="white"/>
+    ${modules}
+  </svg>`;
+}
+
 function renderLabels(labels, config, isMock) {
   const agencyCode     = config.agencyCode     || "038";
   const contractNumber = config.contractNumber || "12623";
@@ -367,7 +405,7 @@ function renderLabels(labels, config, isMock) {
 
       .middle {
         display: grid;
-        grid-template-columns: 1fr auto;
+        grid-template-columns: 1fr 1fr;
         border-bottom: 1px solid #000;
         font-size: 6.5pt;
       }
@@ -399,18 +437,13 @@ function renderLabels(labels, config, isMock) {
         display: flex;
         align-items: center;
         justify-content: center;
+        width: 22mm;
+        height: 22mm;
       }
 
-      .qr-placeholder {
-        width: 18mm;
-        height: 18mm;
-        border: 1px solid #ccc;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 4pt;
-        color: #aaa;
-        text-align: center;
+      .qr-block svg {
+        width: 100%;
+        height: 100%;
       }
 
       .tracking {
@@ -522,7 +555,9 @@ function renderLabels(labels, config, isMock) {
             <div class="colis-badge"><div class="lbl">Colis</div><strong>${index}/${total}</strong></div>
             <div class="poids-badge"><div class="lbl">Poids</div><strong>${weight} kg</strong></div>
           </div>
-          <div class="qr-block"><div class="qr-placeholder">QR CODE<br>DPD</div></div>
+          <div class="qr-block">
+            ${generateQRCodeSVG(fakeTrack)}
+          </div>
         </div>
       </div>
       <div class="tracking">
