@@ -27,6 +27,11 @@ export async function loader({ request }) {
   const skusList   = String(skusParam  || "").split(",").map(s => decodeURIComponent(s));
   const titlesList = String(titlesParam|| "").split(",").map(t => decodeURIComponent(t));
 
+  console.log("skus reçus:", skusParam);
+  console.log("titles reçus:", titlesParam);
+  console.log("skusList:", skusList);
+  console.log("titlesList:", titlesList);
+
   const ref1 = skusList.length > 0
     ? `${skusList[0]} - ${titlesList[0] || ""}`.trim()
     : (titlesList[0] || orderName);
