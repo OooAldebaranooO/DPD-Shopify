@@ -119,8 +119,8 @@ function Extension() {
           `&destCity=${encodeURIComponent(addr?.city || "")}` +
           `&destPhone=${encodeURIComponent(addr?.phone || "")}` +
           `&weights=${encodeURIComponent(weightsParam)}` +
-          `&skus=${encodeURIComponent(skusParam)}` +
-          `&titles=${encodeURIComponent(titlesParam)}`;
+          `&skus=${skusParam}` +
+          `&titles=${titlesParam}`;
 
         setPrintUrl(url);
       } catch (e) {
