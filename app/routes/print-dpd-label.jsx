@@ -67,6 +67,8 @@ export async function loader({ request }) {
     labels = buildMockLabels(count, orderName, destName, destAddress, destAddress2, destZip, destCity, destPhone, weights, skusParam, titlesParam);
   }
 
+  console.log("LABELS BUILT:", JSON.stringify(labels.map(l => ({i: l.index, sku: l.sku, title: l.title}))));
+
   return new Response(renderLabels(labels, config, isMock), {
     headers: {
       "Content-Type": "text/html; charset=utf-8",
@@ -199,8 +201,8 @@ function escapeXml(str) {
 
 function buildMockLabels(count, orderName, destName, destAddress, destAddress2, destZip, destCity, destPhone, weights, skusParam, titlesParam) {
   const weightsList = String(weights || "1").split(",").map(w => parseFloat(w) || 0);
-  const skusList   = String(skusParam  || "").split("-").map(s => decodeURIComponent(s));
-  const titlesList = String(titlesParam|| "").split("-").map(t => decodeURIComponent(t));
+  const skusList   = String(skusParam  || "").split("|").map(s => decodeURIComponent(s));
+  const titlesList = String(titlesParam|| "").split("|").map(t => decodeURIComponent(t));
   return Array.from({ length: count }, (_, i) => ({
     orderName, index: i + 1, total: count,
     destName, destAddress, destAddress2, destZip, destCity, destPhone,
