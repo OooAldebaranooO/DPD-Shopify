@@ -31,7 +31,7 @@ export async function loader({ request }) {
     agencyCode:     process.env.DPD_AGENCY_CODE,
     contractNumber: process.env.DPD_CONTRACT_NUMBER,
     senderName:     process.env.DPD_SENDER_NAME,
-    senderName2:     process.env.DPD_SENDER_NAME2,
+    senderName2:    process.env.DPD_SENDER_NAME2,
     senderAddress:  process.env.DPD_SENDER_ADDRESS,
     senderZip:      process.env.DPD_SENDER_ZIP,
     senderCity:     process.env.DPD_SENDER_CITY,
