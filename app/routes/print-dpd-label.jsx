@@ -21,7 +21,7 @@ export async function loader({ request }) {
   const destZip      = url.searchParams.get("destZip")      || "";
   const destCity     = url.searchParams.get("destCity")     || "";
   const destPhone    = url.searchParams.get("destPhone")    || "";
-  const weight       = url.searchParams.get("weight")       || "1";
+  const weights       = url.searchParams.get("weights")       || "1";
 
   const config = {
     login:          process.env.DPD_LOGIN,
@@ -41,14 +41,14 @@ export async function loader({ request }) {
   if (!isMock) {
     try {
       labels = await callDpdEprint(config, {
-        orderName, count, destName, destAddress, destAddress2, destZip, destCity, destPhone, weight,
+        orderName, count, destName, destAddress, destAddress2, destZip, destCity, destPhone, weights,
       });
     } catch (e) {
       console.error("Erreur EPrint:", e);
-      labels = buildMockLabels(count, orderName, destName, destAddress, destAddress2, destZip, destCity, destPhone, weight);
+      labels = buildMockLabels(count, orderName, destName, destAddress, destAddress2, destZip, destCity, destPhone, weights);
     }
   } else {
-    labels = buildMockLabels(count, orderName, destName, destAddress, destAddress2, destZip, destCity, destPhone, weight);
+    labels = buildMockLabels(count, orderName, destName, destAddress, destAddress2, destZip, destCity, destPhone, weights);
   }
 
   return new Response(renderLabels(labels, config, isMock), {
@@ -65,8 +65,14 @@ async function callDpdEprint(config, order) {
   const WS_URL = "https://e-station.cargonet.software/dpd-eprintwebservice/eprintwebservice.asmx";
   const shippingDate = new Date().toLocaleDateString("fr-FR").split("/").join(".");
 
-  // Un appel par colis
-  const labels = [];
+  const weightsParam = url.searchParams.get("weights") || "";
+  const weightsList  = weightsParam.split(",").map(w => parseFloat(w) || 0);
+
+  const labels = Array.from({ length: count }, (_, i) => ({
+    orderName, index: i + 1, total: count,
+    destName, destAddress, destAddress2, destZip, destCity, destPhone,
+    weight: (weightsList[i] ?? 0).toFixed(2), // ← poids spécifique à ce colis
+  }));
 
   for (let i = 1; i <= order.count; i++) {
     const soap = `<?xml version="1.0" encoding="utf-8"?>
@@ -112,7 +118,7 @@ async function callDpdEprint(config, order) {
             <value>${order.destPhone}</value>
           </contact>
         </services>
-        <weight>${order.weight}</weight>
+        <weight>${order.weights}</weight>
         <shippingdate>${shippingDate}</shippingdate>
         <referencenumber>${escapeXml(order.orderName)}</referencenumber>
         <reference2>${escapeXml(config.senderName.toUpperCase().replace(/\s/g,"_"))}_${order.orderName.replace("#","")}</reference2>
@@ -155,7 +161,7 @@ async function callDpdEprint(config, order) {
       destZip:     order.destZip,
       destCity:    order.destCity,
       destPhone:   order.destPhone,
-      weight:      order.weight,
+      weights:      order.weights,
       labelPdf:    labelMatch?.[1]?.trim() || null,
       trackingNumber: trackMatch?.[1]?.trim() || null,
       fromApi:     true,
@@ -174,10 +180,10 @@ function escapeXml(str) {
     .replace(/'/g, "&apos;");
 }
 
-function buildMockLabels(count, orderName, destName, destAddress, destAddress2, destZip, destCity, destPhone, weight) {
+function buildMockLabels(count, orderName, destName, destAddress, destAddress2, destZip, destCity, destPhone, weights) {
   return Array.from({ length: count }, (_, i) => ({
     orderName, index: i + 1, total: count,
-    destName, destAddress, destAddress2, destZip, destCity, destPhone, weight,
+    destName, destAddress, destAddress2, destZip, destCity, destPhone, weights,
     labelPdf: null, trackingNumber: null, fromApi: false,
   }));
 }
@@ -314,7 +320,7 @@ function renderLabels(labels, config, isMock) {
   </style>
 </head>
 <body>
-  ${labels.map(({ orderName, index, total, destName, destAddress, destAddress2, destZip, destCity, destPhone, weight, trackingNumber }) => {
+  ${labels.map(({ orderName, index, total, destName, destAddress, destAddress2, destZip, destCity, destPhone, weights, trackingNumber }) => {
     const fakeTrack    = trackingNumber || `1038${Math.floor(Math.random()*9000+1000)}${Math.floor(Math.random()*9000+1000)}${Math.floor(Math.random()*90+10)}C`;
     const fakeRouting  = `FR-DPD-${Math.floor(Math.random()*9000+1000)}-${Math.floor(Math.random()*900+100)}-FR-${config.senderZip || "38120"}`;
     const fakeSort     = `${agencyCode}SA`;
@@ -358,7 +364,7 @@ function renderLabels(labels, config, isMock) {
         <div class="middle-right">
           <div class="colis-poids">
             <div class="colis-badge"><div class="lbl">Colis</div><strong>${index}/${total}</strong></div>
-            <div class="poids-badge"><div class="lbl">Poids</div><strong>${weight} kg</strong></div>
+            <div class="poids-badge"><div class="lbl">Poids</div><strong>${weights} kg</strong></div>
           </div>
           <div class="qr-block"><div class="qr-placeholder">QR CODE<br>DPD</div></div>
         </div>

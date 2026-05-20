@@ -116,6 +116,24 @@ function Extension() {
         setOrderName(order.name || null);
         setLabelCount(totalLabels);
 
+        const activeItems = items.map((item: any) => {
+          const w = item?.node?.variant?.inventoryItem?.measurement?.weight;
+          let weightKg = 0;
+          if (w?.value != null) {
+            switch (w.unit) {
+              case 'KILOGRAMS': weightKg = w.value; break;
+              case 'GRAMS':     weightKg = w.value / 1000; break;
+              case 'POUNDS':    weightKg = w.value * 0.453592; break;
+              case 'OUNCES':    weightKg = w.value * 0.0283495; break;
+              default:          weightKg = w.value; break;
+            }
+          }
+          return weightKg;
+        });
+
+        // Passe les poids individuels dans l'URL
+        const weightsParam = activeItems.join(",");
+
         const url = `https://dpd-shopify-oken.vercel.app/print-dpd-label` +
           `?orderName=${encodeURIComponent(order.name ?? "")}` +
           `&count=${totalLabels}` +
@@ -125,7 +143,7 @@ function Extension() {
           `&destZip=${encodeURIComponent(addr?.zip || "")}` +
           `&destCity=${encodeURIComponent(addr?.city || "")}` +
           `&destPhone=${encodeURIComponent(addr?.phone || "")}` +
-          `&weight=${encodeURIComponent(String(totalWeightKg))}`;
+          `&weights=${encodeURIComponent(weightsParam)}`; // ← plural, liste de poids
 
         setPrintUrl(url);
       } catch (e) {
