@@ -31,6 +31,7 @@ export async function loader({ request }) {
     agencyCode:     process.env.DPD_AGENCY_CODE,
     contractNumber: process.env.DPD_CONTRACT_NUMBER,
     senderName:     process.env.DPD_SENDER_NAME,
+    senderName2:     process.env.DPD_SENDER_NAME2,
     senderAddress:  process.env.DPD_SENDER_ADDRESS,
     senderZip:      process.env.DPD_SENDER_ZIP,
     senderCity:     process.env.DPD_SENDER_CITY,
@@ -121,7 +122,7 @@ async function callDpdEprint(config, order) {
         <weight>${itemWeight}</weight>
         <shippingdate>${shippingDate}</shippingdate>
         <referencenumber>${escapeXml(order.orderName)}</referencenumber>
-        <reference2>${escapeXml(config.senderName.toUpperCase().replace(/\s/g,"_"))}_${order.orderName.replace("#","")}</reference2>
+        <reference2>${escapeXml(config.senderName2.toUpperCase().replace(/\s/g,"_"))}_${order.orderName.replace("#","")}</reference2>
         <labelType>
           <type>PDF</type>
           <format>A6</format>
@@ -362,7 +363,7 @@ function renderLabels(labels, config, isMock) {
         <div class="middle-left">
           <div class="row"><span class="lbl">Contact</span><span>Tél ${destPhone || "—"}</span></div>
           <div class="row"><span class="lbl">Ref 1</span><span>${sku ? `${sku} - ` : ""}${title || orderName.replace("#","")}</span></div>
-          <div class="row"><span class="lbl">Ref 2</span><span>${(config.senderName||"EXPEDITEUR").toUpperCase().replace(/\s/g,"_")}_${orderName.replace("#","")}</span></div>
+          <div class="row"><span class="lbl">Ref 2</span><span>${(config.senderName2||"EXPEDITEUR").toUpperCase().replace(/\s/g,"_")}_${orderName.replace("#","")}</span></div>
           <div class="row" style="margin-top:1mm;"><span class="lbl">Info</span><span style="font-style:italic;">Predict</span></div>
         </div>
         <div class="middle-right">
