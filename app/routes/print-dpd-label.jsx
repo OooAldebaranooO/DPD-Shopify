@@ -243,7 +243,6 @@ function renderLabels(labels, config) {
             <div class="label-text">Expéditeur</div>
             <strong>${config.senderName || "EXPÉDITEUR"}</strong><br>
             ${config.senderAddress || ""}<br>
-            ${config.senderAddress2 || ""}<br>
             ${config.senderZip || ""} ${config.senderCity || ""}
           </div>
           <div class="header-right-bottom">

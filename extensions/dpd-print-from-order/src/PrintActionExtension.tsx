@@ -40,6 +40,7 @@ function Extension() {
                   edges {
                     node {
                       quantity
+                      currentQuantity
                       variant {
                         id
                         inventoryItem {
@@ -67,7 +68,9 @@ function Extension() {
           setError("Impossible de charger la commande."); return;
         }
 
-        const items = order.lineItems?.edges || [];
+        const items = (order.lineItems?.edges || []).filter(
+          (item: any) => (item?.node?.currentQuantity || 0) > 0
+        );
 
         const totalLabels = items.length;
 
@@ -79,7 +82,6 @@ function Extension() {
           const qty = node.quantity ?? 0;
           const weight = node.variant?.inventoryItem?.measurement?.weight;
           if (!weight || weight.value == null) {
-            // Pas de poids configuré → on ignore ou on peut mettre un default
             return sum;
           }
 
