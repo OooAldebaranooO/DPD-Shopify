@@ -136,6 +136,7 @@ async function callDpdEprint(config, order) {
 
     const xml = await response.text();
     console.log(`DPD EPrint réponse colis ${i}:`, xml.slice(0, 500));
+    console.log("DPD XML response:", xml);
 
     // Extrait le PDF base64 de la réponse
     const labelMatch = xml.match(/<label>([\s\S]*?)<\/label>/);
