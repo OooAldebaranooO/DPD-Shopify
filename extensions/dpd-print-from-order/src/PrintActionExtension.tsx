@@ -105,6 +105,12 @@ function Extension() {
           return sum + qty * weightInGrams;
         }, 0);
 
+        console.log("ITEMS WEIGHTS:", items.map((item: any) => ({
+          name: item?.node?.variant?.id,
+          weight: item?.node?.variant?.inventoryItem?.measurement?.weight,
+          qty: item?.node?.currentQuantity,
+        })));
+
         // Si DPD attend des kilos avec un nombre à virgule :
         const totalWeightKg = totalWeightGrams / 1000;
 
