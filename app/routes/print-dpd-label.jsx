@@ -1,3 +1,5 @@
+import QRCode from 'qrcode';
+
 export async function action({ request }) {
   if (request.method === "OPTIONS") {
     return new Response(null, {
@@ -24,9 +26,6 @@ export async function loader({ request }) {
   const weights      = url.searchParams.get("weights")      || "1";
   const skusParam    = url.searchParams.get("skus")         || "";
   const titlesParam  = url.searchParams.get("titles")       || "";
-
-  const skusList   = decodeURIComponent(String(skusParam  || "")).split("|");
-  const titlesList = decodeURIComponent(String(titlesParam|| "")).split("|");
 
   const config = {
     login:          process.env.DPD_LOGIN,
@@ -60,9 +59,7 @@ export async function loader({ request }) {
       destZip, destCity, destPhone, weights, skusParam, titlesParam);
   }
 
-  console.log("LABELS BUILT:", JSON.stringify(labels.map(l => ({i: l.index, sku: l.sku, title: l.title}))));
-
-  return new Response(renderLabels(labels, config, isMock), {
+  return new Response(await renderLabels(labels, config, isMock), {
     headers: {
       "Content-Type": "text/html; charset=utf-8",
       "Access-Control-Allow-Origin": "*",
@@ -244,45 +241,7 @@ function generateBarcodeSVG(value) {
   </svg>`;
 }
 
-function generateQRCodeSVG(value) {
-  // QR code simplifié - matrice de modules générée depuis la valeur
-  const size = 21; // Version 1 QR = 21x21
-  const seed = value.split('').reduce((a, c, i) => a + c.charCodeAt(0) * (i + 1), 0);
-  const rng = (i) => ((seed * 1664525 + 1013904223 * (i + 1)) & 0x7fffffff) / 0x7fffffff;
-
-  // Génère une matrice pseudo-aléatoire mais déterministe
-  const matrix = Array.from({ length: size }, (_, row) =>
-    Array.from({ length: size }, (_, col) => {
-      // Finder patterns (coins)
-      if ((row < 7 && col < 7) || (row < 7 && col >= size - 7) || (row >= size - 7 && col < 7)) {
-        const r = Math.min(row, size - 1 - row, col, size - 1 - col);
-        if (row < 7 && col < 7) return (row === 0 || row === 6 || col === 0 || col === 6 || (row >= 2 && row <= 4 && col >= 2 && col <= 4)) ? 1 : 0;
-        if (row < 7 && col >= size - 7) { const c = col - (size - 7); return (row === 0 || row === 6 || c === 0 || c === 6 || (row >= 2 && row <= 4 && c >= 2 && c <= 4)) ? 1 : 0; }
-        if (row >= size - 7 && col < 7) { const r2 = row - (size - 7); return (r2 === 0 || r2 === 6 || col === 0 || col === 6 || (r2 >= 2 && r2 <= 4 && col >= 2 && col <= 4)) ? 1 : 0; }
-      }
-      // Timing patterns
-      if (row === 6 || col === 6) return (row + col) % 2 === 0 ? 1 : 0;
-      // Data modules
-      return rng(row * size + col) > 0.5 ? 1 : 0;
-    })
-  );
-
-  const moduleSize = 2;
-  const svgSize = size * moduleSize;
-  const modules = matrix.flatMap((row, r) =>
-    row.map((cell, c) => cell
-      ? `<rect x="${c * moduleSize}" y="${r * moduleSize}" width="${moduleSize}" height="${moduleSize}" fill="black"/>`
-      : ""
-    )
-  ).join("");
-
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${svgSize}" height="${svgSize}" viewBox="0 0 ${svgSize} ${svgSize}">
-    <rect width="${svgSize}" height="${svgSize}" fill="white"/>
-    ${modules}
-  </svg>`;
-}
-
-function renderLabels(labels, config, isMock) {
+async function renderLabels(labels, config, isMock) {
   const agencyCode     = config.agencyCode     || "038";
   const contractNumber = config.contractNumber || "12623";
 
@@ -304,219 +263,177 @@ function renderLabels(labels, config, isMock) {
       </head><body>${embeds}</body></html>`;
   }
 
+  // Pré-génère les données dynamiques + QR codes pour chaque label
+  const labelsWithData = await Promise.all(labels.map(async (label) => {
+    const fakeTrack   = label.trackingNumber || `1038${Math.floor(Math.random()*9000+1000)}${Math.floor(Math.random()*9000+1000)}${Math.floor(Math.random()*90+10)}C`;
+    const fakeRouting = `FR-DPD-${Math.floor(Math.random()*9000+1000)}-${Math.floor(Math.random()*900+100)}-FR-${config.senderZip || "38120"}`;
+    const fakeSort    = `${agencyCode}SA`;
+    const ref1Display = label.sku ? `${label.sku} - ${label.title}` : (label.title || label.orderName.replace("#", ""));
+    const qrSvg       = await QRCode.toString(fakeTrack, {
+      type: 'svg',
+      margin: 1,
+      width: 60,
+      color: { dark: '#000000', light: '#ffffff' },
+    });
+    return { ...label, fakeTrack, fakeRouting, fakeSort, ref1Display, qrSvg };
+  }));
+
   return `<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="utf-8"/>
   <title>Étiquettes DPD</title>
   <style>
-      @page {
-        size: 105mm 148mm;
-        margin: 0;
-      }
-
-      * {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-      }
-
-      body {
-        width: 105mm;
-        margin: 0;
-        padding: 0;
-        font-family: Arial, sans-serif;
-        color: #000;
-        background: #fff;
-      }
-
-      .label {
-        width: 105mm;
-        height: 148mm;
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-        page-break-after: always;
-      }
-
-      .label:last-child {
-        page-break-after: auto;
-      }
-
-      .mock-banner {
-        background: #fff3cd;
-        border-bottom: 1px solid #ffc107;
-        padding: 1mm 2mm;
-        font-size: 5.5pt;
-        text-align: center;
-      }
-
-      .header {
-        display: grid;
-        grid-template-columns: 1fr 6mm 1fr;
-        border-bottom: 1px solid #000;
-        min-height: 22mm;
-        position: relative;
-      }
-
-      .header-dest { padding: 2mm; }
-
-      .dest-name {
-        font-size: 10pt;
-        font-weight: 700;
-        line-height: 1.2;
-        margin-bottom: 1.5mm;
-        text-transform: uppercase;
-      }
-
-      .dest-address { font-size: 7.5pt; line-height: 1.4; }
-
-      .header-separator {
-        border-left: 1px solid #000;
-        border-right: 1px solid #000;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-
-      .header-separator span {
-        writing-mode: vertical-rl;
-        transform: rotate(180deg);
-        font-size: 5pt;
-        letter-spacing: 1px;
-      }
-
-      .header-right { display: grid; grid-template-rows: 1fr 1fr; }
-
-      .header-right-top {
-        border-bottom: 1px solid #000;
-        padding: 1.5mm;
-        font-size: 6pt;
-        line-height: 1.3;
-      }
-
-      .header-right-top .lbl { font-size: 5pt; color: #444; margin-bottom: 0.5mm; }
-
-      .header-right-bottom { padding: 1.5mm; font-size: 5.5pt; line-height: 1.3; }
-
-      .header-right-bottom .lbl { font-size: 5pt; color: #444; margin-bottom: 0.5mm; }
-
-      .dpd-logo { position: absolute; top: 2mm; right: 2mm; height: 32px; }
-
-      .middle {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        border-bottom: 1px solid #000;
-        font-size: 6.5pt;
-      }
-
-      .middle-left { padding: 1.5mm 2mm; border-right: 1px solid #000; }
-
-      .row { margin-bottom: 1mm; }
-
-      .row .lbl { font-size: 5.5pt; color: #444; display: block; }
-
-      .middle-right { display: grid; grid-template-columns: auto auto; }
-
-      .colis-poids { display: flex; flex-direction: column; border-right: 1px solid #000; }
-
-      .colis-badge { padding: 1.5mm 3mm; border-bottom: 1px solid #000; flex: 1; }
-
-      .colis-badge .lbl { font-size: 5pt; color: #444; }
-
-      .colis-badge strong { font-size: 13pt; font-weight: 700; }
-
-      .poids-badge { padding: 1.5mm 3mm; flex: 1; }
-
-      .poids-badge .lbl { font-size: 5pt; color: #444; }
-
-      .poids-badge strong { font-size: 13pt; font-weight: 700; }
-
-      .qr-block {
-        padding: 1.5mm;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 22mm;
-        height: 22mm;
-      }
-
-      .qr-block svg {
-        width: 100%;
-        height: 100%;
-      }
-
-      .tracking {
-        display: grid;
-        grid-template-columns: 1fr auto;
-        padding: 1mm 2mm;
-        border-bottom: 1px solid #000;
-        align-items: center;
-      }
-
-      .tracking-number { font-size: 14pt; font-weight: 700; }
-
-      .service-code { text-align: right; }
-
-      .service-code .code { font-size: 10pt; font-weight: 700; }
-
-      .service-code .lbl { font-size: 5pt; color: #444; }
-
-      .footer-codes {
-        display: grid;
-        grid-template-columns: auto 1fr auto;
-        align-items: center;
-        padding: 1mm 2mm;
-        border-bottom: 1px solid #000;
-        gap: 2mm;
-      }
-
-      .depot-code {
-        background: #000;
-        color: #fff;
-        font-size: 13pt;
-        font-weight: 700;
-        padding: 0.5mm 3mm;
-      }
-
-      .routing-code { font-size: 8pt; font-weight: 700; text-align: center; }
-
-      .sort-code {
-        background: #000;
-        color: #fff;
-        font-size: 13pt;
-        font-weight: 700;
-        padding: 0.5mm 3mm;
-      }
-
-      .barcode-bottom {
-        padding: 1.5mm 2mm 1mm;
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-      }
-
-      .barcode-svg-wrap { width: 90%; }
-
-      .barcode-text {
-        font-size: 5pt;
-        color: #444;
-        margin-top: 1mm;
-        text-align: center;
-      }
-    </style>
+    @page {
+      size: 105mm 148mm;
+      margin: 0;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 105mm;
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      color: #000;
+      background: #fff;
+    }
+    .label {
+      width: 105mm;
+      height: 148mm;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      page-break-after: always;
+    }
+    .label:last-child { page-break-after: auto; }
+    .mock-banner {
+      background: #fff3cd;
+      border-bottom: 1px solid #ffc107;
+      padding: 1mm 2mm;
+      font-size: 5.5pt;
+      text-align: center;
+    }
+    .header {
+      display: grid;
+      grid-template-columns: 1fr 6mm 1fr;
+      border-bottom: 1px solid #000;
+      min-height: 22mm;
+      position: relative;
+    }
+    .header-dest { padding: 2mm; }
+    .dest-name {
+      font-size: 10pt;
+      font-weight: 700;
+      line-height: 1.2;
+      margin-bottom: 1.5mm;
+      text-transform: uppercase;
+    }
+    .dest-address { font-size: 7.5pt; line-height: 1.4; }
+    .header-separator {
+      border-left: 1px solid #000;
+      border-right: 1px solid #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .header-separator span {
+      writing-mode: vertical-rl;
+      transform: rotate(180deg);
+      font-size: 5pt;
+      letter-spacing: 1px;
+    }
+    .header-right { display: grid; grid-template-rows: 1fr 1fr; }
+    .header-right-top {
+      border-bottom: 1px solid #000;
+      padding: 1.5mm;
+      font-size: 6pt;
+      line-height: 1.3;
+    }
+    .header-right-top .lbl { font-size: 5pt; color: #444; margin-bottom: 0.5mm; }
+    .header-right-bottom { padding: 1.5mm; font-size: 5.5pt; line-height: 1.3; }
+    .header-right-bottom .lbl { font-size: 5pt; color: #444; margin-bottom: 0.5mm; }
+    .dpd-logo { position: absolute; top: 2mm; right: 2mm; height: 32px; }
+    .middle {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      border-bottom: 1px solid #000;
+      font-size: 6.5pt;
+    }
+    .middle-left { padding: 1.5mm 2mm; border-right: 1px solid #000; }
+    .row { margin-bottom: 1mm; }
+    .row .lbl { font-size: 5.5pt; color: #444; display: block; }
+    .middle-right { display: grid; grid-template-columns: auto auto; }
+    .colis-poids { display: flex; flex-direction: column; border-right: 1px solid #000; }
+    .colis-badge { padding: 1.5mm 3mm; border-bottom: 1px solid #000; flex: 1; }
+    .colis-badge .lbl { font-size: 5pt; color: #444; }
+    .colis-badge strong { font-size: 13pt; font-weight: 700; }
+    .poids-badge { padding: 1.5mm 3mm; flex: 1; }
+    .poids-badge .lbl { font-size: 5pt; color: #444; }
+    .poids-badge strong { font-size: 13pt; font-weight: 700; }
+    .qr-block {
+      padding: 1.5mm;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 22mm;
+      height: 22mm;
+    }
+    .qr-block svg { width: 100%; height: 100%; }
+    .tracking {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      padding: 1mm 2mm;
+      border-bottom: 1px solid #000;
+      align-items: center;
+    }
+    .tracking-number { font-size: 14pt; font-weight: 700; }
+    .service-code { text-align: right; }
+    .service-code .code { font-size: 10pt; font-weight: 700; }
+    .service-code .lbl { font-size: 5pt; color: #444; }
+    .footer-codes {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      padding: 1mm 2mm;
+      border-bottom: 1px solid #000;
+      gap: 2mm;
+    }
+    .depot-code {
+      background: #000;
+      color: #fff;
+      font-size: 13pt;
+      font-weight: 700;
+      padding: 0.5mm 3mm;
+    }
+    .routing-code { font-size: 8pt; font-weight: 700; text-align: center; }
+    .sort-code {
+      background: #000;
+      color: #fff;
+      font-size: 13pt;
+      font-weight: 700;
+      padding: 0.5mm 3mm;
+    }
+    .barcode-bottom {
+      padding: 1.5mm 2mm 1mm;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .barcode-svg-wrap { width: 90%; }
+    .barcode-text {
+      font-size: 5pt;
+      color: #444;
+      margin-top: 1mm;
+      text-align: center;
+    }
+  </style>
 </head>
 <body>
-  ${labels.map(({ orderName, index, total, destName, destAddress, destAddress2,
-    destZip, destCity, destPhone, weight, trackingNumber, sku, title }) => {
-    const fakeTrack   = trackingNumber || `1038${Math.floor(Math.random()*9000+1000)}${Math.floor(Math.random()*9000+1000)}${Math.floor(Math.random()*90+10)}C`;
-    const fakeRouting = `FR-DPD-${Math.floor(Math.random()*9000+1000)}-${Math.floor(Math.random()*900+100)}-FR-${config.senderZip || "38120"}`;
-    const fakeSort    = `${agencyCode}SA`;
-    const ref1Display = sku ? `${sku} - ${title}` : (title || orderName.replace("#", ""));
-
-    return `
+  ${labelsWithData.map(({ orderName, index, total, destName, destAddress, destAddress2,
+    destZip, destCity, destPhone, weight,
+    fakeTrack, fakeRouting, fakeSort, ref1Display, qrSvg }) => `
     <div class="label">
       ${isMock ? `<div class="mock-banner">⚠️ Aperçu — En attente de connexion à l'API DPD</div>` : ""}
       <div class="header">
@@ -525,7 +442,7 @@ function renderLabels(labels, config, isMock) {
           <div class="dest-address">
             ${destAddress}${destAddress2 ? `<br>${destAddress2}` : ""}<br>
             <strong>${destZip}</strong><br>
-            <strong style="font-size:11pt;">${destCity.toUpperCase()}</strong>
+            <strong style="font-size:9pt;">${destCity.toUpperCase()}</strong>
           </div>
         </div>
         <div class="header-separator"><span>Destinataire</span></div>
@@ -548,16 +465,14 @@ function renderLabels(labels, config, isMock) {
           <div class="row"><span class="lbl">Contact</span><span>Tél ${destPhone || "—"}</span></div>
           <div class="row"><span class="lbl">Ref 1</span><span>${ref1Display}</span></div>
           <div class="row"><span class="lbl">Ref 2</span><span>${(config.senderName2 || config.senderName || "EXPEDITEUR").toUpperCase().replace(/\s/g,"_")}_${orderName.replace("#","")}</span></div>
-          <div class="row" style="margin-top:1mm;"><span class="lbl">Info</span><span style="font-style:italic;">Predict</span></div>
+          <div class="row"><span class="lbl">Info</span><span style="font-style:italic;">Predict</span></div>
         </div>
         <div class="middle-right">
           <div class="colis-poids">
             <div class="colis-badge"><div class="lbl">Colis</div><strong>${index}/${total}</strong></div>
             <div class="poids-badge"><div class="lbl">Poids</div><strong>${weight} kg</strong></div>
           </div>
-          <div class="qr-block">
-            ${generateQRCodeSVG(fakeTrack)}
-          </div>
+          <div class="qr-block">${qrSvg}</div>
         </div>
       </div>
       <div class="tracking">
@@ -575,8 +490,8 @@ function renderLabels(labels, config, isMock) {
           ${new Date().toLocaleDateString("fr-FR")} ${new Date().toLocaleTimeString("fr-FR")} · Commande : ${orderName} · Colis : ${index}/${total}
         </div>
       </div>
-    </div>`;
-  }).join("")}
+    </div>`
+  ).join("")}
 </body>
 </html>`;
 }
