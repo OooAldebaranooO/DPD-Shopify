@@ -4,10 +4,8 @@ export async function action({ request }) {
       status: 204,
       headers: {
         "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
         "Access-Control-Allow-Headers": "*",
-        "X-Frame-Options": "ALLOWALL",
-        "Content-Security-Policy": "frame-ancestors *",
       },
     });
   }
@@ -83,8 +81,6 @@ export async function loader({ request }) {
     headers: {
       "Content-Type": "text/html; charset=utf-8",
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "*",
       "X-Frame-Options": "ALLOWALL",
       "Content-Security-Policy": "frame-ancestors *",
     },
@@ -300,7 +296,7 @@ function renderLabels(labels, config, isMock) {
     .header-right-top .lbl { font-size: 6pt; color: #444; margin-bottom: 1mm; }
     .header-right-bottom { padding: 2mm; font-size: 6.5pt; line-height: 1.4; }
     .header-right-bottom .lbl { font-size: 6pt; color: #444; margin-bottom: 1mm; }
-    .dpd-logo { position: absolute; top: 3mm; right: 3mm; height: 16px; }
+    .dpd-logo { position: absolute; top: 3mm; right: 3mm; height: 45px; }
     .middle { display: grid; grid-template-columns: 1fr auto; border-bottom: 1px solid #000; font-size: 7.5pt; }
     .middle-left { padding: 2mm 3mm; border-right: 1px solid #000; }
     .row { margin-bottom: 1.5mm; }
