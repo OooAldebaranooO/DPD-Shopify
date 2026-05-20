@@ -4,8 +4,10 @@ export async function action({ request }) {
       status: 204,
       headers: {
         "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
         "Access-Control-Allow-Headers": "*",
+        "X-Frame-Options": "ALLOWALL",
+        "Content-Security-Policy": "frame-ancestors *",
       },
     });
   }
@@ -81,6 +83,8 @@ export async function loader({ request }) {
     headers: {
       "Content-Type": "text/html; charset=utf-8",
       "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "*",
       "X-Frame-Options": "ALLOWALL",
       "Content-Security-Policy": "frame-ancestors *",
     },
