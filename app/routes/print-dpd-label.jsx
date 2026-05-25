@@ -20,6 +20,7 @@ export async function loader({ request }) {
   const destName     = url.searchParams.get("destName")     || "NOM DESTINATAIRE";
   const destAddress  = url.searchParams.get("destAddress")  || "";
   const destAddress2 = url.searchParams.get("destAddress2") || "";
+  const destCompany  = url.searchParams.get("destCompany")  || "";
   const destZip      = url.searchParams.get("destZip")      || "";
   const destCity     = url.searchParams.get("destCity")     || "";
   const destPhone    = url.searchParams.get("destPhone")    || "";
@@ -46,16 +47,16 @@ export async function loader({ request }) {
   if (!isMock) {
     try {
       labels = await callDpdEprint(config, {
-        orderName, count, destName, destAddress, destAddress2,
+        orderName, count, destName, destCompany, destAddress, destAddress2,
         destZip, destCity, destPhone, weights, skusParam, titlesParam,
       });
     } catch (e) {
       console.error("Erreur EPrint:", e.message);
-      labels = buildMockLabels(count, orderName, destName, destAddress, destAddress2,
+      labels = buildMockLabels(count, orderName, destName, destCompany, destAddress, destAddress2,
         destZip, destCity, destPhone, weights, skusParam, titlesParam);
     }
   } else {
-    labels = buildMockLabels(count, orderName, destName, destAddress, destAddress2,
+    labels = buildMockLabels(count, orderName, destName, destCompany, destAddress, destAddress2,
       destZip, destCity, destPhone, weights, skusParam, titlesParam);
   }
 
@@ -102,7 +103,7 @@ async function callDpdEprint(config, order) {
         <customer_centernumber>${config.agencyCode}</customer_centernumber>
         <customer_number>${config.contractNumber}</customer_number>
         <receiveraddress>
-          <name>${escapeXml(order.destName)}</name>
+          <name>${escapeXml(order.destCompany || order.destName)}</name>
           <street>${escapeXml(order.destAddress)}</street>
           ${order.destAddress2 ? `<houseNo>${escapeXml(order.destAddress2)}</houseNo>` : ""}
           <countryPrefix>FR</countryPrefix>
@@ -168,6 +169,7 @@ async function callDpdEprint(config, order) {
       index:          i,
       total:          order.count,
       destName:       order.destName,
+      destCompany:    order.destCompany,
       destAddress:    order.destAddress,
       destAddress2:   order.destAddress2,
       destZip:        order.destZip,
@@ -194,14 +196,14 @@ function escapeXml(str) {
     .replace(/'/g, "&apos;");
 }
 
-function buildMockLabels(count, orderName, destName, destAddress, destAddress2,
+function buildMockLabels(count, orderName, destName, destCompany, destAddress, destAddress2,
   destZip, destCity, destPhone, weights, skusParam, titlesParam) {
   const weightsList = String(weights    || "1").split(",").map(w => parseFloat(w) || 0);
   const skusList    = decodeURIComponent(String(skusParam   || "")).split("|");
   const titlesList  = decodeURIComponent(String(titlesParam || "")).split("|");
   return Array.from({ length: count }, (_, i) => ({
     orderName, index: i + 1, total: count,
-    destName, destAddress, destAddress2, destZip, destCity, destPhone,
+    destName, destCompany, destAddress, destAddress2, destZip, destCity, destPhone,
     weight: (weightsList[i] ?? weightsList[0] ?? 1).toFixed(2),
     sku:   skusList[i]   ?? "",
     title: titlesList[i] ?? "",
@@ -460,14 +462,18 @@ async function renderLabels(labels, config, isMock) {
   </style>
 </head>
 <body>
-  ${labelsWithData.map(({ orderName, index, total, destName, destAddress, destAddress2,
+  ${labelsWithData.map(({ orderName, index, total, destName, destCompany, destAddress, destAddress2,
     destZip, destCity, destPhone, weight,
     fakeTrack, fakeRouting, fakeSort, ref1Display, qrSvg }) => `
     <div class="label">
       ${isMock ? `<div class="mock-banner">⚠️ Aperçu — En attente de connexion à l'API DPD</div>` : ""}
       <div class="header">
         <div class="header-dest">
-          <div class="dest-name">${destName}</div>
+          <div class="dest-name">
+            ${destCompany
+              ? `${destCompany}<br/><span style="font-size:8pt;font-weight:400;">${destName}</span>`
+              : destName}
+          </div>
           <div class="dest-address">
             ${destAddress}${destAddress2 ? `<br>${destAddress2}` : ""}<br>
             <strong>${destZip}</strong><br>

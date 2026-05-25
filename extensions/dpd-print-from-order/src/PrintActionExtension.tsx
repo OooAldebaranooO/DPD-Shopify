@@ -33,6 +33,7 @@ function Extension() {
                 shippingAddress {
                   firstName
                   lastName
+                  company
                   address1
                   address2
                   zip
@@ -84,6 +85,8 @@ function Extension() {
         const destName = addr
           ? `${addr.firstName || ""} ${addr.lastName || ""}`.trim()
           : "";
+        
+        const destCompany = addr?.company || "";
 
         setOrderName(order.name || null);
         setLabelCount(totalLabels);
@@ -121,6 +124,7 @@ function Extension() {
           `?orderName=${encodeURIComponent(order.name ?? "")}` +
           `&count=${totalLabels}` +
           `&destName=${encodeURIComponent(destName)}` +
+          `&destCompany=${encodeURIComponent(destCompany)}` +
           `&destAddress=${encodeURIComponent(addr?.address1 || "")}` +
           `&destAddress2=${encodeURIComponent(addr?.address2 || "")}` +
           `&destZip=${encodeURIComponent(addr?.zip || "")}` +
