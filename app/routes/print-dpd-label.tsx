@@ -139,7 +139,7 @@ async function callDpdEprint(config: Config, order: OrderParams): Promise<LabelD
     const itemWeight = (weightsList[i - 1] ?? weightsList[0] ?? 1).toFixed(2);
     const itemSku    = skusList[i - 1]   ?? "";
     const itemTitle  = titlesList[i - 1] ?? "";
-    const ref1       = itemSku ? `${itemSku} - ${itemTitle}` : (itemTitle || order.orderName);
+    const ref1       = itemSku || order.orderName;
 
     const soap = `<?xml version="1.0" encoding="utf-8"?>
 <soap:Envelope
@@ -328,9 +328,7 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
       || `1038${Math.floor(Math.random()*9000+1000)}${Math.floor(Math.random()*9000+1000)}${Math.floor(Math.random()*90+10)}C`;
     const fakeRouting = `FR-DPD-${Math.floor(Math.random()*9000+1000)}-${Math.floor(Math.random()*900+100)}-FR-${config.senderZip || "38120"}`;
     const fakeSort    = `${agencyCode}SA`;
-    const ref1Display = label.sku
-      ? `${label.sku} - ${label.title}`
-      : (label.title || label.orderName.replace("#", ""));
+    const ref1Display = label.sku || label.orderName.replace("#", "");
 
     const [barcodeDataUrl, qrSvg] = await Promise.all([
       generateBarcodeBase64(trackingNumber),
