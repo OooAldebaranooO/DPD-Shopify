@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
-client_id = "79d5e7599bdd1d792722832e24cdc6fc"
-name = "Impression DPD by Jojo"
+client_id = "3eefea0dfdc009fb911f0e93547def96"
+name = "DPD Livedeco"
 application_url = "https://dpd-shopify-oken.vercel.app"
 embedded = true
 

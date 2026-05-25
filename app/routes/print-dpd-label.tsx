@@ -1,6 +1,57 @@
 import QRCode from 'qrcode';
+import bwipjs from 'bwip-js';
 
-export async function action({ request }) {
+// ── Types ────────────────────────────────────────────────────────────────────
+
+interface Config {
+  login:          string | undefined;
+  password:       string | undefined;
+  agencyCode:     string | undefined;
+  contractNumber: string | undefined;
+  senderName:     string | undefined;
+  senderName2:    string | undefined;
+  senderAddress:  string | undefined;
+  senderZip:      string | undefined;
+  senderCity:     string | undefined;
+}
+
+interface OrderParams {
+  orderName:   string;
+  count:       number;
+  destName:    string;
+  destCompany: string;
+  destAddress: string;
+  destAddress2:string;
+  destZip:     string;
+  destCity:    string;
+  destPhone:   string;
+  weights:     string;
+  skusParam:   string;
+  titlesParam: string;
+}
+
+interface LabelData {
+  orderName:      string;
+  index:          number;
+  total:          number;
+  destName:       string;
+  destCompany:    string;
+  destAddress:    string;
+  destAddress2:   string;
+  destZip:        string;
+  destCity:       string;
+  destPhone:      string;
+  weight:         string;
+  sku:            string;
+  title:          string;
+  labelPdf:       string | null;
+  trackingNumber: string | null;
+  fromApi:        boolean;
+}
+
+// ── Action (OPTIONS) ─────────────────────────────────────────────────────────
+
+export async function action({ request }: { request: Request }) {
   if (request.method === "OPTIONS") {
     return new Response(null, {
       status: 204,
@@ -13,7 +64,9 @@ export async function action({ request }) {
   }
 }
 
-export async function loader({ request }) {
+// ── Loader ───────────────────────────────────────────────────────────────────
+
+export async function loader({ request }: { request: Request }) {
   const url = new URL(request.url);
   const orderName    = url.searchParams.get("orderName")    || "Commande";
   const count        = Number(url.searchParams.get("count") || "1");
@@ -28,7 +81,7 @@ export async function loader({ request }) {
   const skusParam    = url.searchParams.get("skus")         || "";
   const titlesParam  = url.searchParams.get("titles")       || "";
 
-  const config = {
+  const config: Config = {
     login:          process.env.DPD_LOGIN,
     password:       process.env.DPD_PASSWORD,
     agencyCode:     process.env.DPD_AGENCY_CODE,
@@ -42,7 +95,7 @@ export async function loader({ request }) {
 
   const isMock = !config.login || !config.password;
 
-  let labels = [];
+  let labels: LabelData[] = [];
 
   if (!isMock) {
     try {
@@ -51,7 +104,7 @@ export async function loader({ request }) {
         destZip, destCity, destPhone, weights, skusParam, titlesParam,
       });
     } catch (e) {
-      console.error("Erreur EPrint:", e.message);
+      console.error("Erreur EPrint:", (e as Error).message);
       labels = buildMockLabels(count, orderName, destName, destCompany, destAddress, destAddress2,
         destZip, destCity, destPhone, weights, skusParam, titlesParam);
     }
@@ -70,15 +123,17 @@ export async function loader({ request }) {
   });
 }
 
-async function callDpdEprint(config, order) {
+// ── DPD EPrint SOAP ──────────────────────────────────────────────────────────
+
+async function callDpdEprint(config: Config, order: OrderParams): Promise<LabelData[]> {
   const WS_URL = "https://e-station.cargonet.software/dpd-eprintwebservice/eprintwebservice.asmx";
   const shippingDate = new Date().toLocaleDateString("fr-FR").split("/").join(".");
 
   const weightsList = String(order.weights || "1").split(",").map(w => parseFloat(w) || 0);
-  const skusList    = decodeURIComponent(String(order.skusParam   || "")).split("|");
-  const titlesList  = decodeURIComponent(String(order.titlesParam || "")).split("|");
+  const skusList    = String(order.skusParam   || "").split("|").map(s => decodeURIComponent(s));
+  const titlesList  = String(order.titlesParam || "").split("|").map(s => decodeURIComponent(s));
 
-  const labels = [];
+  const labels: LabelData[] = [];
 
   for (let i = 1; i <= order.count; i++) {
     const itemWeight = (weightsList[i - 1] ?? weightsList[0] ?? 1).toFixed(2);
@@ -117,11 +172,11 @@ async function callDpdEprint(config, order) {
           </contact>
         </receiverinfo>
         <shipperaddress>
-          <name>${escapeXml(config.senderName)}</name>
-          <street>${escapeXml(config.senderAddress)}</street>
+          <name>${escapeXml(config.senderName ?? "")}</name>
+          <street>${escapeXml(config.senderAddress ?? "")}</street>
           <countryPrefix>FR</countryPrefix>
           <zipCode>${config.senderZip}</zipCode>
-          <city>${escapeXml(config.senderCity)}</city>
+          <city>${escapeXml(config.senderCity ?? "")}</city>
         </shipperaddress>
         <services>
           <contact>
@@ -133,7 +188,7 @@ async function callDpdEprint(config, order) {
         <shippingdate>${shippingDate}</shippingdate>
         <referencenumber>${escapeXml(ref1)}</referencenumber>
         <reference2>${escapeXml(
-          (config.senderName2 || config.senderName || "EXPEDITEUR")
+          (config.senderName2 || config.senderName || "EXPEDITEUR")!
             .toUpperCase()
             .replace(/\s/g, "_")
         )}_${order.orderName.replace("#", "")}</reference2>
@@ -187,7 +242,9 @@ async function callDpdEprint(config, order) {
   return labels;
 }
 
-function escapeXml(str) {
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function escapeXml(str: string): string {
   return String(str || "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -196,56 +253,57 @@ function escapeXml(str) {
     .replace(/'/g, "&apos;");
 }
 
-function buildMockLabels(count, orderName, destName, destCompany, destAddress, destAddress2,
-  destZip, destCity, destPhone, weights, skusParam, titlesParam) {
+function buildMockLabels(
+  count: number, orderName: string, destName: string, destCompany: string,
+  destAddress: string, destAddress2: string, destZip: string, destCity: string,
+  destPhone: string, weights: string, skusParam: string, titlesParam: string
+): LabelData[] {
   const weightsList = String(weights    || "1").split(",").map(w => parseFloat(w) || 0);
-  const skusList    = decodeURIComponent(String(skusParam   || "")).split("|");
-  const titlesList  = decodeURIComponent(String(titlesParam || "")).split("|");
+  const skusList    = String(skusParam   || "").split("|").map(s => decodeURIComponent(s));
+  const titlesList  = String(titlesParam || "").split("|").map(s => decodeURIComponent(s));
   return Array.from({ length: count }, (_, i) => ({
     orderName, index: i + 1, total: count,
     destName, destCompany, destAddress, destAddress2, destZip, destCity, destPhone,
-    weight: (weightsList[i] ?? weightsList[0] ?? 1).toFixed(2),
-    sku:   skusList[i]   ?? "",
-    title: titlesList[i] ?? "",
+    weight:   (weightsList[i] ?? weightsList[0] ?? 1).toFixed(2),
+    sku:      skusList[i]   ?? "",
+    title:    titlesList[i] ?? "",
     labelPdf: null, trackingNumber: null, fromApi: false,
   }));
 }
 
-function generateBarcodeSVG(value) {
-  const seed = value.split('').reduce((a, c, i) => a + c.charCodeAt(0) * (i + 1), 0);
-  const rng  = (i) => ((seed * 9301 + 49297 * (i + 1)) % 233280) / 233280;
-  const bars = [];
-  let x = 4;
-  const h = 110;
-  [2,1,1,4,1,2].forEach((w, i) => {
-    if (i % 2 === 0) bars.push(`<rect x="${x}" y="0" width="${w*1.5}" height="${h}" fill="black"/>`);
-    x += w * 1.5;
-  });
-  for (let i = 0; i < value.length; i++) {
-    const widths = [
-      1 + Math.floor(rng(i*6)*3),   1 + Math.floor(rng(i*6+1)*2),
-      1 + Math.floor(rng(i*6+2)*3), 1 + Math.floor(rng(i*6+3)*2),
-      1 + Math.floor(rng(i*6+4)*3), 1 + Math.floor(rng(i*6+5)*2),
-    ];
-    widths.forEach((w, j) => {
-      if (j % 2 === 0) bars.push(`<rect x="${x}" y="0" width="${w*1.5}" height="${h}" fill="black"/>`);
-      x += w * 1.5;
+// ── Barcode & QR ─────────────────────────────────────────────────────────────
+
+async function generateBarcodeBase64(value: string): Promise<string> {
+  try {
+    const png = await bwipjs.toBuffer({
+      bcid:        'code128',
+      text:        value,
+      scale:       3,
+      height:      12,
+      includetext: true,
+      textxalign:  'center',
+      textsize:    9,
     });
+    return `data:image/png;base64,${png.toString('base64')}`;
+  } catch (e) {
+    console.error("Erreur barcode bwip-js:", e);
+    return "";
   }
-  [2,3,3,1,1,1,2].forEach((w, i) => {
-    if (i % 2 === 0) bars.push(`<rect x="${x}" y="0" width="${w*1.5}" height="${h}" fill="black"/>`);
-    x += w * 1.5;
-  });
-  x += 4;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="${h+14}" viewBox="0 0 ${x} ${h+14}" preserveAspectRatio="none">
-    ${bars.join('')}
-    <text x="${x/2}" y="${h+11}" text-anchor="middle" font-family="monospace" font-size="9" fill="black">${value}</text>
-  </svg>`;
 }
 
-async function renderLabels(labels, config, isMock) {
-  const agencyCode     = config.agencyCode     || "038";
-  const contractNumber = config.contractNumber || "12623";
+async function generateQrSvg(value: string): Promise<string> {
+  return QRCode.toString(value, {
+    type: 'svg',
+    margin: 1,
+    width: 60,
+    color: { dark: '#000000', light: '#ffffff' },
+  });
+}
+
+// ── Render ───────────────────────────────────────────────────────────────────
+
+async function renderLabels(labels: LabelData[], config: Config, isMock: boolean): Promise<string> {
+  const agencyCode = config.agencyCode || "038";
 
   if (!isMock && labels.some(l => l.labelPdf)) {
     if (labels.length === 1 && labels[0].labelPdf) {
@@ -265,19 +323,21 @@ async function renderLabels(labels, config, isMock) {
       </head><body>${embeds}</body></html>`;
   }
 
-  // Pré-génère les données dynamiques + QR codes pour chaque label
   const labelsWithData = await Promise.all(labels.map(async (label) => {
-    const fakeTrack   = label.trackingNumber || `1038${Math.floor(Math.random()*9000+1000)}${Math.floor(Math.random()*9000+1000)}${Math.floor(Math.random()*90+10)}C`;
+    const trackingNumber = label.trackingNumber
+      || `1038${Math.floor(Math.random()*9000+1000)}${Math.floor(Math.random()*9000+1000)}${Math.floor(Math.random()*90+10)}C`;
     const fakeRouting = `FR-DPD-${Math.floor(Math.random()*9000+1000)}-${Math.floor(Math.random()*900+100)}-FR-${config.senderZip || "38120"}`;
     const fakeSort    = `${agencyCode}SA`;
-    const ref1Display = label.sku ? `${label.sku} - ${label.title}` : (label.title || label.orderName.replace("#", ""));
-    const qrSvg       = await QRCode.toString(fakeTrack, {
-      type: 'svg',
-      margin: 1,
-      width: 60,
-      color: { dark: '#000000', light: '#ffffff' },
-    });
-    return { ...label, fakeTrack, fakeRouting, fakeSort, ref1Display, qrSvg };
+    const ref1Display = label.sku
+      ? `${label.sku} - ${label.title}`
+      : (label.title || label.orderName.replace("#", ""));
+
+    const [barcodeDataUrl, qrSvg] = await Promise.all([
+      generateBarcodeBase64(trackingNumber),
+      generateQrSvg(trackingNumber),
+    ]);
+
+    return { ...label, trackingNumber, fakeRouting, fakeSort, ref1Display, barcodeDataUrl, qrSvg };
   }));
 
   return `<!DOCTYPE html>
@@ -286,82 +346,25 @@ async function renderLabels(labels, config, isMock) {
   <meta charset="utf-8"/>
   <title>Étiquettes DPD</title>
   <style>
-    @page {
-      size: 105mm 148mm;
-      margin: 0;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
-    }
+    @page { size: 105mm 148mm; margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      width: 105mm;
-      margin: 0;
-      padding: 0;
-      font-family: Arial, sans-serif;
-      color: #000;
-      background: #fff;
-    }
-    .label {
-      width: 105mm;
-      height: 148mm;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      page-break-after: always;
-    }
+    body { width: 105mm; margin: 0; padding: 0; font-family: Arial, sans-serif; color: #000; background: #fff; }
+    .label { width: 105mm; height: 148mm; display: flex; flex-direction: column; overflow: hidden; page-break-after: always; }
     .label:last-child { page-break-after: auto; }
-    .mock-banner {
-      background: #fff3cd;
-      border-bottom: 1px solid #ffc107;
-      padding: 1mm 2mm;
-      font-size: 5.5pt;
-      text-align: center;
-    }
-    .header {
-      display: grid;
-      grid-template-columns: 1fr 6mm 1fr;
-      border-bottom: 1px solid #000;
-      min-height: 22mm;
-      position: relative;
-    }
+    .mock-banner { background: #fff3cd; border-bottom: 1px solid #ffc107; padding: 1mm 2mm; font-size: 5.5pt; text-align: center; }
+    .header { display: grid; grid-template-columns: 1fr 6mm 1fr; border-bottom: 1px solid #000; min-height: 22mm; position: relative; }
     .header-dest { padding: 2mm; }
-    .dest-name {
-      font-size: 10pt;
-      font-weight: 700;
-      line-height: 1.2;
-      margin-bottom: 1.5mm;
-      text-transform: uppercase;
-    }
+    .dest-name { font-size: 10pt; font-weight: 700; line-height: 1.2; margin-bottom: 1.5mm; text-transform: uppercase; }
     .dest-address { font-size: 7.5pt; line-height: 1.4; }
-    .header-separator {
-      border-left: 1px solid #000;
-      border-right: 1px solid #000;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .header-separator span {
-      writing-mode: vertical-rl;
-      font-size: 7pt;
-      letter-spacing: 1px;
-    }
+    .header-separator { border-left: 1px solid #000; border-right: 1px solid #000; display: flex; align-items: center; justify-content: center; }
+    .header-separator span { writing-mode: vertical-rl; font-size: 7pt; letter-spacing: 1px; }
     .header-right { display: grid; grid-template-rows: 1fr 1fr; }
-    .header-right-top {
-      border-bottom: 1px solid #000;
-      padding: 1.5mm;
-      font-size: 6pt;
-      line-height: 1.3;
-    }
+    .header-right-top { border-bottom: 1px solid #000; padding: 1.5mm; font-size: 6pt; line-height: 1.3; }
     .header-right-top .lbl { font-size: 5pt; color: #444; margin-bottom: 0.5mm; }
     .header-right-bottom { padding: 1.5mm; font-size: 5.5pt; line-height: 1.3; }
     .header-right-bottom .lbl { font-size: 5pt; color: #444; margin-bottom: 0.5mm; }
     .dpd-logo { position: absolute; top: 2mm; right: 2mm; height: 32px; }
-    .middle {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      border-bottom: 1px solid #000;
-      font-size: 6.5pt;
-    }
+    .middle { display: grid; grid-template-columns: 1fr auto; border-bottom: 1px solid #000; font-size: 6.5pt; }
     .middle-left { padding: 1.5mm 2mm; border-right: 1px solid #000; }
     .row { margin-bottom: 1mm; }
     .row .lbl { font-size: 5.5pt; color: #444; display: block; }
@@ -373,98 +376,27 @@ async function renderLabels(labels, config, isMock) {
     .poids-badge { padding: 1.5mm 3mm; flex: 1; }
     .poids-badge .lbl { font-size: 5pt; color: #444; }
     .poids-badge strong { font-size: 13pt; font-weight: 700; }
-    .qr-block {
-      padding: 1.5mm;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 27.65mm
-      height: 27.65mm
-    }
+    .qr-block { padding: 1.5mm; display: flex; align-items: center; justify-content: center; width: 27.65mm; height: 27.65mm; }
     .qr-block svg { width: 100%; height: 100%; }
-    .tracking {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      padding: 1mm 2mm;
-      border-bottom: 1px solid #000;
-      align-items: center;
-    }
+    .tracking { display: grid; grid-template-columns: 1fr auto; padding: 1mm 2mm; border-bottom: 1px solid #000; align-items: center; }
     .tracking-number { font-size: 14pt; font-weight: 700; }
     .service-code { text-align: right; }
     .service-code .code { font-size: 10pt; font-weight: 700; }
     .service-code .lbl { font-size: 5pt; color: #444; }
-    .footer-codes {
-      display: grid;
-      grid-template-columns: auto 1fr auto;
-      align-items: center;
-      padding: 1mm 2mm;
-      border-bottom: 1px solid #000;
-      gap: 2mm;
-    }
-    .depot-code {
-      background: #000;
-      color: #fff;
-      font-size: 13pt;
-      font-weight: 700;
-      padding: 0.5mm 3mm;
-    }
+    .footer-codes { display: grid; grid-template-columns: auto 1fr auto; align-items: center; padding: 1mm 2mm; border-bottom: 1px solid #000; gap: 2mm; }
+    .depot-code { background: #000 !important; color: #fff !important; font-size: 13pt; font-weight: 700; padding: 0.5mm 3mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .routing-code { font-size: 14pt; font-weight: 700; text-align: center; }
-    .sort-code {
-      background: #000;
-      color: #fff;
-      font-size: 13pt;
-      font-weight: 700;
-      padding: 0.5mm 3mm;
-    }
-    .barcode-bottom {
-      padding: 1.5mm 2mm 1mm;
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-    }
-    .barcode-svg-wrap { width: 90%; }
-    .barcode-text {
-      font-size: 5pt;
-      color: #444;
-      margin-top: 1mm;
-      text-align: center;
-    }
-
-    @media print {
-      * {
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
-        color-adjust: exact !important;
-      }
-    }
-
-    .depot-code {
-      background: #000 !important;
-      color: #fff !important;
-      font-size: 13pt;
-      font-weight: 700;
-      padding: 0.5mm 3mm;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
-    }
-
-    .sort-code {
-      background: #000 !important;
-      color: #fff !important;
-      font-size: 13pt;
-      font-weight: 700;
-      padding: 0.5mm 3mm;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
-    }
+    .sort-code { background: #000 !important; color: #fff !important; font-size: 13pt; font-weight: 700; padding: 0.5mm 3mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .barcode-bottom { padding: 1.5mm 2mm 1mm; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .barcode-img { width: 90%; height: auto; image-rendering: pixelated; }
+    .barcode-text { font-size: 5pt; color: #444; margin-top: 1mm; text-align: center; }
+    @media print { * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } }
   </style>
 </head>
 <body>
   ${labelsWithData.map(({ orderName, index, total, destName, destCompany, destAddress, destAddress2,
     destZip, destCity, destPhone, weight,
-    fakeTrack, fakeRouting, fakeSort, ref1Display, qrSvg }) => `
+    trackingNumber, fakeRouting, fakeSort, ref1Display, barcodeDataUrl, qrSvg }) => `
     <div class="label">
       ${isMock ? `<div class="mock-banner">⚠️ Aperçu — En attente de connexion à l'API DPD</div>` : ""}
       <div class="header">
@@ -499,7 +431,7 @@ async function renderLabels(labels, config, isMock) {
         <div class="middle-left">
           <div class="row"><span class="lbl">Contact</span><span>Tél ${destPhone || "—"}</span></div>
           <div class="row"><span class="lbl">Ref 1</span><span>${ref1Display}</span></div>
-          <div class="row"><span class="lbl">Ref 2</span><span>${(config.senderName2 || config.senderName || "EXPEDITEUR").toUpperCase().replace(/\s/g,"_")}_${orderName.replace("#","")}</span></div>
+          <div class="row"><span class="lbl">Ref 2</span><span>${(config.senderName2 || config.senderName || "EXPEDITEUR")!.toUpperCase().replace(/\s/g,"_")}_${orderName.replace("#","")}</span></div>
           <div class="row"><span class="lbl">Info</span><span style="font-style:italic;">Predict</span></div>
         </div>
         <div class="middle-right">
@@ -512,7 +444,7 @@ async function renderLabels(labels, config, isMock) {
       </div>
       <div class="tracking">
         <div class="tracking-number">
-          <span style="font-size:20pt; font-weight:900;">1038</span><span style="font-size:14pt; font-weight:700;">${fakeTrack.slice(4)}</span>
+          <span style="font-size:20pt;font-weight:900;">1038</span><span style="font-size:14pt;font-weight:700;">${trackingNumber.slice(4)}</span>
         </div>
         <div class="service-code"><div class="code">D-B2C</div><div class="lbl">Service</div></div>
       </div>
@@ -522,7 +454,10 @@ async function renderLabels(labels, config, isMock) {
         <div class="sort-code">${fakeSort}</div>
       </div>
       <div class="barcode-bottom">
-        <div class="barcode-svg-wrap">${generateBarcodeSVG(fakeTrack)}</div>
+        ${barcodeDataUrl
+          ? `<img class="barcode-img" src="${barcodeDataUrl}" alt="Code-barres ${trackingNumber}"/>`
+          : `<span style="font-size:7pt;color:#999;">Barcode indisponible</span>`
+        }
         <div class="barcode-text">
           ${new Date().toLocaleDateString("fr-FR")} ${new Date().toLocaleTimeString("fr-FR")} · Commande : ${orderName} · Colis : ${index}/${total}
         </div>

@@ -1,6 +1,6 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
-client_id = "79d5e7599bdd1d792722832e24cdc6fc"
+client_id = "3eefea0dfdc009fb911f0e93547def96"
 name = "dpd-print-from-order"
 application_url = "https://example.com"
 embedded = true

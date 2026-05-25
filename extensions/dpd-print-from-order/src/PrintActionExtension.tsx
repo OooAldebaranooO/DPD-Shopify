@@ -67,32 +67,26 @@ function Extension() {
           { variables: { ids: [orderId] } },
         );
 
-        console.log('GraphQL result', JSON.stringify(result, null, 2));
-
         const order = result?.data?.nodes?.[0] as any;
         if (!order || order.__typename !== "Order") {
           setError("Impossible de charger la commande.");
           return;
         }
 
-        const items = (order.lineItems?.edges || []).filter(
+        // Lignes avec au moins 1 article non annulé
+        const lines = (order.lineItems?.edges || []).filter(
           (item: any) => (item?.node?.currentQuantity || 0) > 0
         );
 
-        const totalLabels = items.length;
+        // 🔧 FIX : on répète chaque ligne autant de fois que sa currentQuantity
+        // → 1x produit A + 2x produit B = 3 entrées = 3 étiquettes
+        const activeItems: { weight: number; sku: string; title: string }[] = [];
 
-        const addr = order.shippingAddress;
-        const destName = addr
-          ? `${addr.firstName || ""} ${addr.lastName || ""}`.trim()
-          : "";
-        
-        const destCompany = addr?.company || "";
+        for (const edge of lines) {
+          const node = edge?.node;
+          const qty = node?.currentQuantity || 1;
+          const w = node?.variant?.inventoryItem?.measurement?.weight;
 
-        setOrderName(order.name || null);
-        setLabelCount(totalLabels);
-
-        const activeItems = items.map((item: any) => {
-          const w = item?.node?.variant?.inventoryItem?.measurement?.weight;
           let weightKg = 0;
           if (w?.value != null) {
             switch (w.unit) {
@@ -103,22 +97,35 @@ function Extension() {
               default:          weightKg = w.value; break;
             }
           }
-          return {
-            weight: weightKg,
-            sku:   item?.node?.variant?.sku   || "",
-            title: item?.node?.title          || "",
-          };
-        });
 
-        const weightsParam = activeItems.map((i: any) => i.weight).join(",");
-        const skusParam    = activeItems.map((i: any) => encodeURIComponent(i.sku)).join("|");
-        const titlesParam  = activeItems.map((i: any) => encodeURIComponent(i.title)).join("|");
+          // On pousse une entrée par unité commandée
+          for (let q = 0; q < qty; q++) {
+            activeItems.push({
+              weight: weightKg,
+              // 🔧 FIX ref1 : on n'encode pas les séparateurs dans les valeurs
+              // On utilise encodeURIComponent uniquement au moment de construire l'URL
+              sku:   node?.variant?.sku || "",
+              title: node?.title        || "",
+            });
+          }
+        }
 
-        const ref1 = activeItems
-          .map((i: any) => (i.sku ? `${i.sku} - ${i.title}` : i.title))
-          .join(" | ");
+        const totalLabels = activeItems.length;
 
-        console.log('Ref1 string', ref1);
+        const addr = order.shippingAddress;
+        const destName = addr
+          ? `${addr.firstName || ""} ${addr.lastName || ""}`.trim()
+          : "";
+        const destCompany = addr?.company || "";
+
+        setOrderName(order.name || null);
+        setLabelCount(totalLabels);
+
+        // 🔧 FIX ref1 : on encode chaque valeur individuellement,
+        // le séparateur "|" reste en clair pour être splitté côté serveur
+        const weightsParam = activeItems.map(i => i.weight.toFixed(3)).join(",");
+        const skusParam    = activeItems.map(i => encodeURIComponent(i.sku)).join("|");
+        const titlesParam  = activeItems.map(i => encodeURIComponent(i.title)).join("|");
 
         const url = `https://dpd-shopify-oken.vercel.app/print-dpd-label` +
           `?orderName=${encodeURIComponent(order.name ?? "")}` +
@@ -132,8 +139,8 @@ function Extension() {
           `&destPhone=${encodeURIComponent(addr?.phone || "")}` +
           `&weights=${encodeURIComponent(weightsParam)}` +
           `&skus=${encodeURIComponent(skusParam)}` +
-          `&titles=${encodeURIComponent(titlesParam)}` +
-          `&ref1=${encodeURIComponent(ref1)}`;
+          `&titles=${encodeURIComponent(titlesParam)}`;
+        // 🔧 FIX : suppression du paramètre &ref1 redondant (reconstruit côté serveur)
 
         setPrintUrl(url);
       } catch (e) {
