@@ -1,5 +1,6 @@
 import QRCode from 'qrcode';
 import bwipjs from 'bwip-js';
+import { kv } from '@vercel/kv';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -15,19 +16,22 @@ interface Config {
   senderCity:     string | undefined;
 }
 
-interface OrderParams {
-  orderName:   string;
-  count:       number;
-  destName:    string;
-  destCompany: string;
-  destAddress: string;
-  destAddress2:string;
-  destZip:     string;
-  destCity:    string;
-  destPhone:   string;
-  weights:     string;
-  skusParam:   string;
-  titlesParam: string;
+interface OrderItem {
+  weight: number;
+  sku:    string;
+  title:  string;
+}
+
+interface OrderPayload {
+  orderName:    string;
+  destName:     string;
+  destCompany:  string;
+  destAddress:  string;
+  destAddress2: string;
+  destZip:      string;
+  destCity:     string;
+  destPhone:    string;
+  items:        OrderItem[];
 }
 
 interface LabelData {
@@ -67,19 +71,8 @@ export async function action({ request }: { request: Request }) {
 // ── Loader ───────────────────────────────────────────────────────────────────
 
 export async function loader({ request }: { request: Request }) {
-  const url = new URL(request.url);
-  const orderName    = url.searchParams.get("orderName")    || "Commande";
-  const count        = Number(url.searchParams.get("count") || "1");
-  const destName     = url.searchParams.get("destName")     || "NOM DESTINATAIRE";
-  const destAddress  = url.searchParams.get("destAddress")  || "";
-  const destAddress2 = url.searchParams.get("destAddress2") || "";
-  const destCompany  = url.searchParams.get("destCompany")  || "";
-  const destZip      = url.searchParams.get("destZip")      || "";
-  const destCity     = url.searchParams.get("destCity")     || "";
-  const destPhone    = url.searchParams.get("destPhone")    || "";
-  const weights      = url.searchParams.get("weights")      || "1";
-  const skusParam    = url.searchParams.get("skus")         || "";
-  const titlesParam  = url.searchParams.get("titles")       || "";
+  const url   = new URL(request.url);
+  const token = url.searchParams.get("token");
 
   const config: Config = {
     login:          process.env.DPD_LOGIN,
@@ -94,23 +87,83 @@ export async function loader({ request }: { request: Request }) {
   };
 
   const isMock = !config.login || !config.password;
-
   let labels: LabelData[] = [];
 
-  if (!isMock) {
+  if (token) {
+    // ── MODE BULK : données depuis Vercel KV via token ──
     try {
-      labels = await callDpdEprint(config, {
-        orderName, count, destName, destCompany, destAddress, destAddress2,
-        destZip, destCity, destPhone, weights, skusParam, titlesParam,
-      });
+      const raw = await kv.get<string>(`print:${token}`);
+      if (raw) {
+        const orders: OrderPayload[] = typeof raw === 'string' ? JSON.parse(raw) : raw as OrderPayload[];
+        await kv.del(`print:${token}`);
+
+        for (const order of orders) {
+          const total = order.items.length;
+          order.items.forEach((item, i) => {
+            labels.push({
+              orderName:    order.orderName,
+              index:        i + 1,
+              total,
+              destName:     order.destName,
+              destCompany:  order.destCompany,
+              destAddress:  order.destAddress,
+              destAddress2: order.destAddress2,
+              destZip:      order.destZip,
+              destCity:     order.destCity,
+              destPhone:    order.destPhone,
+              weight:       item.weight.toFixed(2),
+              sku:          item.sku,
+              title:        item.title,
+              labelPdf:     null,
+              trackingNumber: null,
+              fromApi:      false,
+            });
+          });
+        }
+      }
     } catch (e) {
-      console.error("Erreur EPrint:", (e as Error).message);
+      console.error("KV get error:", e);
+    }
+  } else {
+    // ── MODE INDIVIDUEL : données depuis les paramètres URL ──
+    const orderName    = url.searchParams.get("orderName")    || "Commande";
+    const count        = Number(url.searchParams.get("count") || "1");
+    const destName     = url.searchParams.get("destName")     || "NOM DESTINATAIRE";
+    const destAddress  = url.searchParams.get("destAddress")  || "";
+    const destAddress2 = url.searchParams.get("destAddress2") || "";
+    const destCompany  = url.searchParams.get("destCompany")  || "";
+    const destZip      = url.searchParams.get("destZip")      || "";
+    const destCity     = url.searchParams.get("destCity")     || "";
+    const destPhone    = url.searchParams.get("destPhone")    || "";
+    const weights      = url.searchParams.get("weights")      || "1";
+    const skusParam    = url.searchParams.get("skus")         || "";
+    const titlesParam  = url.searchParams.get("titles")       || "";
+
+    if (!isMock) {
+      try {
+        labels = await callDpdEprint(config, {
+          orderName, count, destName, destCompany, destAddress, destAddress2,
+          destZip, destCity, destPhone, weights, skusParam, titlesParam,
+        });
+      } catch (e) {
+        console.error("Erreur EPrint:", (e as Error).message);
+        labels = buildMockLabels(count, orderName, destName, destCompany, destAddress, destAddress2,
+          destZip, destCity, destPhone, weights, skusParam, titlesParam);
+      }
+    } else {
       labels = buildMockLabels(count, orderName, destName, destCompany, destAddress, destAddress2,
         destZip, destCity, destPhone, weights, skusParam, titlesParam);
     }
-  } else {
-    labels = buildMockLabels(count, orderName, destName, destCompany, destAddress, destAddress2,
-      destZip, destCity, destPhone, weights, skusParam, titlesParam);
+  }
+
+  // ── MODE BULK avec API DPD ──
+  if (token && labels.length > 0 && !isMock) {
+    try {
+      labels = await callDpdEprintBulk(config, labels);
+    } catch (e) {
+      console.error("Erreur EPrint bulk:", (e as Error).message);
+      // garde les labels mock en cas d'erreur
+    }
   }
 
   return new Response(await renderLabels(labels, config, isMock), {
@@ -123,7 +176,22 @@ export async function loader({ request }: { request: Request }) {
   });
 }
 
-// ── DPD EPrint SOAP ──────────────────────────────────────────────────────────
+// ── DPD EPrint SOAP — Mode individuel (OrderParams) ──────────────────────────
+
+interface OrderParams {
+  orderName:   string;
+  count:       number;
+  destName:    string;
+  destCompany: string;
+  destAddress: string;
+  destAddress2:string;
+  destZip:     string;
+  destCity:    string;
+  destPhone:   string;
+  weights:     string;
+  skusParam:   string;
+  titlesParam: string;
+}
 
 async function callDpdEprint(config: Config, order: OrderParams): Promise<LabelData[]> {
   const WS_URL = "https://e-station.cargonet.software/dpd-eprintwebservice/eprintwebservice.asmx";
@@ -141,10 +209,75 @@ async function callDpdEprint(config: Config, order: OrderParams): Promise<LabelD
     const itemTitle  = titlesList[i - 1] ?? "";
     const ref1       = itemSku || order.orderName;
 
-    const soap = `<?xml version="1.0" encoding="utf-8"?>
-<soap:Envelope
-  xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
-  xmlns:imt="http://www.cargonet.software">
+    const xml = await soapRequest(config, {
+      destName: order.destName, destCompany: order.destCompany,
+      destAddress: order.destAddress, destAddress2: order.destAddress2,
+      destZip: order.destZip, destCity: order.destCity, destPhone: order.destPhone,
+      orderName: order.orderName, ref1, weight: itemWeight, shippingDate,
+    });
+
+    const labelMatch = xml.match(/<label>([\s\S]*?)<\/label>/);
+    const trackMatch = xml.match(/<parcelnumber>([\s\S]*?)<\/parcelnumber>/i);
+    const errMatch   = xml.match(/<ErrorMessage>([\s\S]*?)<\/ErrorMessage>/i);
+    if (errMatch) throw new Error(errMatch[1]);
+
+    labels.push({
+      orderName: order.orderName, index: i, total: order.count,
+      destName: order.destName, destCompany: order.destCompany,
+      destAddress: order.destAddress, destAddress2: order.destAddress2,
+      destZip: order.destZip, destCity: order.destCity, destPhone: order.destPhone,
+      weight: itemWeight, sku: itemSku, title: itemTitle,
+      labelPdf:       labelMatch?.[1]?.trim() || null,
+      trackingNumber: trackMatch?.[1]?.trim() || null,
+      fromApi: true,
+    });
+  }
+
+  return labels;
+}
+
+// ── DPD EPrint SOAP — Mode bulk (LabelData[]) ────────────────────────────────
+
+async function callDpdEprintBulk(config: Config, labels: LabelData[]): Promise<LabelData[]> {
+  const shippingDate = new Date().toLocaleDateString("fr-FR").split("/").join(".");
+  const result: LabelData[] = [];
+
+  for (const label of labels) {
+    const xml = await soapRequest(config, {
+      destName: label.destName, destCompany: label.destCompany,
+      destAddress: label.destAddress, destAddress2: label.destAddress2,
+      destZip: label.destZip, destCity: label.destCity, destPhone: label.destPhone,
+      orderName: label.orderName, ref1: label.sku || label.orderName,
+      weight: label.weight, shippingDate,
+    });
+
+    const labelMatch = xml.match(/<label>([\s\S]*?)<\/label>/);
+    const trackMatch = xml.match(/<parcelnumber>([\s\S]*?)<\/parcelnumber>/i);
+    const errMatch   = xml.match(/<ErrorMessage>([\s\S]*?)<\/ErrorMessage>/i);
+    if (errMatch) throw new Error(errMatch[1]);
+
+    result.push({
+      ...label,
+      labelPdf:       labelMatch?.[1]?.trim() || null,
+      trackingNumber: trackMatch?.[1]?.trim() || null,
+      fromApi: true,
+    });
+  }
+
+  return result;
+}
+
+// ── SOAP helper partagé ───────────────────────────────────────────────────────
+
+async function soapRequest(config: Config, p: {
+  destName: string; destCompany: string; destAddress: string; destAddress2: string;
+  destZip: string; destCity: string; destPhone: string;
+  orderName: string; ref1: string; weight: string; shippingDate: string;
+}): Promise<string> {
+  const WS_URL = "https://e-station.cargonet.software/dpd-eprintwebservice/eprintwebservice.asmx";
+
+  const body = `<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:imt="http://www.cargonet.software">
   <soap:Header>
     <imt:UserCredentials>
       <imt:userid>${config.login}</imt:userid>
@@ -158,18 +291,15 @@ async function callDpdEprint(config: Config, order: OrderParams): Promise<LabelD
         <customer_centernumber>${config.agencyCode}</customer_centernumber>
         <customer_number>${config.contractNumber}</customer_number>
         <receiveraddress>
-          <name>${escapeXml(order.destCompany || order.destName)}</name>
-          <street>${escapeXml(order.destAddress)}</street>
-          ${order.destAddress2 ? `<houseNo>${escapeXml(order.destAddress2)}</houseNo>` : ""}
+          <name>${escapeXml(p.destCompany || p.destName)}</name>
+          <street>${escapeXml(p.destAddress)}</street>
+          ${p.destAddress2 ? `<houseNo>${escapeXml(p.destAddress2)}</houseNo>` : ""}
           <countryPrefix>FR</countryPrefix>
-          <zipCode>${order.destZip}</zipCode>
-          <city>${escapeXml(order.destCity)}</city>
+          <zipCode>${p.destZip}</zipCode>
+          <city>${escapeXml(p.destCity)}</city>
         </receiveraddress>
         <receiverinfo>
-          <contact>
-            <type>phone</type>
-            <value>${order.destPhone}</value>
-          </contact>
+          <contact><type>phone</type><value>${p.destPhone}</value></contact>
         </receiverinfo>
         <shipperaddress>
           <name>${escapeXml(config.senderName ?? "")}</name>
@@ -179,78 +309,39 @@ async function callDpdEprint(config: Config, order: OrderParams): Promise<LabelD
           <city>${escapeXml(config.senderCity ?? "")}</city>
         </shipperaddress>
         <services>
-          <contact>
-            <type>predict</type>
-            <value>${order.destPhone}</value>
-          </contact>
+          <contact><type>predict</type><value>${p.destPhone}</value></contact>
         </services>
-        <weight>${itemWeight}</weight>
-        <shippingdate>${shippingDate}</shippingdate>
-        <referencenumber>${escapeXml(ref1)}</referencenumber>
+        <weight>${p.weight}</weight>
+        <shippingdate>${p.shippingDate}</shippingdate>
+        <referencenumber>${escapeXml(p.ref1)}</referencenumber>
         <reference2>${escapeXml(
           (config.senderName2 || config.senderName || "EXPEDITEUR")!
-            .toUpperCase()
-            .replace(/\s/g, "_")
-        )}_${order.orderName.replace("#", "")}</reference2>
-        <labelType>
-          <type>PDF</type>
-          <format>A6</format>
-        </labelType>
+            .toUpperCase().replace(/\s/g, "_")
+        )}_${p.orderName.replace("#", "")}</reference2>
+        <labelType><type>PDF</type><format>A6</format></labelType>
       </request>
     </CreateShipmentWithLabelsBc>
   </soap:Body>
 </soap:Envelope>`;
 
-    const response = await fetch(WS_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "text/xml; charset=utf-8",
-        "SOAPAction": "http://www.cargonet.software/CreateShipmentWithLabelsBc",
-      },
-      body: soap,
-    });
+  const response = await fetch(WS_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "text/xml; charset=utf-8",
+      "SOAPAction": "http://www.cargonet.software/CreateShipmentWithLabelsBc",
+    },
+    body,
+  });
 
-    const xml = await response.text();
-    console.log(`DPD EPrint réponse colis ${i}:`, xml.slice(0, 500));
-
-    const labelMatch = xml.match(/<label>([\s\S]*?)<\/label>/);
-    const trackMatch = xml.match(/<parcelnumber>([\s\S]*?)<\/parcelnumber>/i);
-    const errMatch   = xml.match(/<ErrorMessage>([\s\S]*?)<\/ErrorMessage>/i);
-
-    if (errMatch) throw new Error(errMatch[1]);
-
-    labels.push({
-      orderName:      order.orderName,
-      index:          i,
-      total:          order.count,
-      destName:       order.destName,
-      destCompany:    order.destCompany,
-      destAddress:    order.destAddress,
-      destAddress2:   order.destAddress2,
-      destZip:        order.destZip,
-      destCity:       order.destCity,
-      destPhone:      order.destPhone,
-      weight:         itemWeight,
-      sku:            itemSku,
-      title:          itemTitle,
-      labelPdf:       labelMatch?.[1]?.trim() || null,
-      trackingNumber: trackMatch?.[1]?.trim() || null,
-      fromApi:        true,
-    });
-  }
-
-  return labels;
+  return response.text();
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function escapeXml(str: string): string {
   return String(str || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 }
 
 function buildMockLabels(
@@ -259,8 +350,8 @@ function buildMockLabels(
   destPhone: string, weights: string, skusParam: string, titlesParam: string
 ): LabelData[] {
   const weightsList = String(weights    || "1").split(",").map(w => parseFloat(w) || 0);
-  const skusList    = String(skusParam   || "").split("|").map(s => decodeURIComponent(s));
-  const titlesList  = String(titlesParam || "").split("|").map(s => decodeURIComponent(s));
+  const skusList    = String(skusParam  || "").split("|").map(s => decodeURIComponent(s));
+  const titlesList  = String(titlesParam|| "").split("|").map(s => decodeURIComponent(s));
   return Array.from({ length: count }, (_, i) => ({
     orderName, index: i + 1, total: count,
     destName, destCompany, destAddress, destAddress2, destZip, destCity, destPhone,
@@ -276,26 +367,19 @@ function buildMockLabels(
 async function generateBarcodeBase64(value: string): Promise<string> {
   try {
     const png = await bwipjs.toBuffer({
-      bcid:        'code128',
-      text:        value,
-      scale:       3,
-      height:      12,
-      includetext: true,
-      textxalign:  'center',
-      textsize:    9,
+      bcid: 'code128', text: value, scale: 3, height: 12,
+      includetext: true, textxalign: 'center', textsize: 9,
     });
     return `data:image/png;base64,${png.toString('base64')}`;
   } catch (e) {
-    console.error("Erreur barcode bwip-js:", e);
+    console.error("Erreur barcode:", e);
     return "";
   }
 }
 
 async function generateQrSvg(value: string): Promise<string> {
   return QRCode.toString(value, {
-    type: 'svg',
-    margin: 1,
-    width: 60,
+    type: 'svg', margin: 1, width: 60,
     color: { dark: '#000000', light: '#ffffff' },
   });
 }
@@ -306,13 +390,6 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
   const agencyCode = config.agencyCode || "038";
 
   if (!isMock && labels.some(l => l.labelPdf)) {
-    if (labels.length === 1 && labels[0].labelPdf) {
-      return `<!DOCTYPE html><html><head><meta charset="utf-8"/>
-        <style>body{margin:0;} embed{width:100%;height:100vh;}</style>
-        </head><body>
-        <embed src="data:application/pdf;base64,${labels[0].labelPdf}" type="application/pdf"/>
-        </body></html>`;
-    }
     const embeds = labels.map(l => l.labelPdf
       ? `<div style="page-break-after:always">
            <embed src="data:application/pdf;base64,${l.labelPdf}" type="application/pdf" width="100%" height="400px"/>
