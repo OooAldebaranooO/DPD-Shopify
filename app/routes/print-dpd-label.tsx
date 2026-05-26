@@ -95,7 +95,7 @@ export async function loader({ request }: { request: Request }) {
       const raw = await kv.get<string>(`print:${token}`);
       if (raw) {
         const orders: OrderPayload[] = typeof raw === 'string' ? JSON.parse(raw) : raw as OrderPayload[];
-        await kv.del(`print:${token}`);
+        //await kv.del(`print:${token}`);
 
         for (const order of orders) {
           const total = order.items.length;
