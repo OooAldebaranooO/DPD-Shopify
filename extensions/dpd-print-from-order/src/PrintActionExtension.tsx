@@ -49,6 +49,11 @@ function Extension() {
                       variant {
                         id
                         sku
+                        product {
+                          metafield(namespace: "shopify", key: "package-selector-input") {
+                            value
+                          }
+                        }
                         inventoryItem {
                           measurement {
                             weight {
