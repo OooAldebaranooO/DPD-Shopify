@@ -3,12 +3,23 @@ import { randomBytes } from 'crypto';
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
+// 🔧 FIX : loader GET requis pour que Remix accepte la route
+// et que le preflight OPTIONS retourne un statut OK
+export async function loader({ request }: { request: Request }) {
+  if (request.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: CORS_HEADERS });
+  }
+  return new Response(JSON.stringify({ ok: true }), {
+    status: 200,
+    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+  });
+}
+
 export async function action({ request }: { request: Request }) {
-  // CORS preflight
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: CORS_HEADERS });
   }
