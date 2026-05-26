@@ -49,17 +49,6 @@ function Extension() {
                       variant {
                         id
                         sku
-                        product {
-                          metafields(first: 10) {
-                            edges {
-                              node {
-                                namespace
-                                key
-                                value
-                              }
-                            }
-                          }
-                        }
                         inventoryItem {
                           measurement {
                             weight {
@@ -93,9 +82,6 @@ function Extension() {
         for (const edge of lines) {
           const node = edge?.node;
           const qty = node?.currentQuantity || 1;
-
-          console.log('metafields:', JSON.stringify(node?.variant?.product?.metafields?.edges));
-
           const w = node?.variant?.inventoryItem?.measurement?.weight;
 
           let weightKg = 0;
