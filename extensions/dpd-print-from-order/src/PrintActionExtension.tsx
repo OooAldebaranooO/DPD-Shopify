@@ -50,8 +50,14 @@ function Extension() {
                         id
                         sku
                         product {
-                          metafield(namespace: "shopify", key: "package-selector-input") {
-                            value
+                          metafields(first: 10) {
+                            edges {
+                              node {
+                                namespace
+                                key
+                                value
+                              }
+                            }
                           }
                         }
                         inventoryItem {
