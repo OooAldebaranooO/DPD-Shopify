@@ -10,7 +10,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export default function Index() {
   return (
-    <s-page heading="Impression DPD by Jojo">
+    <s-page heading="Impression DPD LiveDeco">
       <s-section heading="Comment ça marche ?">
         <s-paragraph>
           1. Depuis n'importe quelle commande, cliquez sur "Autres actions" puis "Impression DPD".

@@ -72,6 +72,8 @@ function Extension() {
           { variables: { ids: [orderId] } },
         );
 
+        console.log('emballage produit:', node?.variant?.product?.metafield?.value);
+        
         const order = result?.data?.nodes?.[0] as any;
         if (!order || order.__typename !== "Order") {
           setError("Impossible de charger la commande.");
@@ -163,7 +165,7 @@ function Extension() {
       <s-stack direction="block" gap="base">
         <s-stack direction="block" gap="none">
           <s-heading>Impression DPD</s-heading>
-          <s-text tone="subdued">Impression d'étiquettes by Jojo</s-text>
+          <s-text tone="subdued">Impression d'étiquettes LiveDeco</s-text>
         </s-stack>
         <s-divider />
         {error ? (

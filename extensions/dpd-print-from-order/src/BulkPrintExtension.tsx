@@ -166,7 +166,7 @@ function BulkPrintExtension() {
       <s-stack direction="block" gap="base">
         <s-stack direction="block" gap="none">
           <s-heading>Impression DPD</s-heading>
-          <s-text tone="subdued">Impression d'étiquettes by Jojo</s-text>
+          <s-text tone="subdued">Impression d'étiquettes DPD LiveDeco</s-text>
         </s-stack>
         <s-divider />
         {status === 'error' ? (
