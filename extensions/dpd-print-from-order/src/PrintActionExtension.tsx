@@ -72,26 +72,24 @@ function Extension() {
           { variables: { ids: [orderId] } },
         );
 
-        console.log('emballage produit:', node?.variant?.product?.metafield?.value);
-        
         const order = result?.data?.nodes?.[0] as any;
         if (!order || order.__typename !== "Order") {
           setError("Impossible de charger la commande.");
           return;
         }
 
-        // Lignes avec au moins 1 article non annulé
         const lines = (order.lineItems?.edges || []).filter(
           (item: any) => (item?.node?.currentQuantity || 0) > 0
         );
 
-        // 🔧 FIX : on répète chaque ligne autant de fois que sa currentQuantity
-        // → 1x produit A + 2x produit B = 3 entrées = 3 étiquettes
         const activeItems: { weight: number; sku: string; title: string }[] = [];
 
         for (const edge of lines) {
           const node = edge?.node;
           const qty = node?.currentQuantity || 1;
+
+          console.log('emballage produit:', node?.variant?.product?.metafield?.value);
+
           const w = node?.variant?.inventoryItem?.measurement?.weight;
 
           let weightKg = 0;
