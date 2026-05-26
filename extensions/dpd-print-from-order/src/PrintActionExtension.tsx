@@ -49,17 +49,6 @@ function Extension() {
                       variant {
                         id
                         sku
-                        product {
-                          metafields(first: 10) {
-                            edges {
-                              node {
-                                namespace
-                                key
-                                value
-                              }
-                            }
-                          }
-                        }
                         inventoryItem {
                           measurement {
                             weight {
