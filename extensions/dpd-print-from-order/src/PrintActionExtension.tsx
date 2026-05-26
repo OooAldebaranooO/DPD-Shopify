@@ -57,9 +57,6 @@ function Extension() {
                             }
                           }
                         }
-                        emballage: metafield(namespace: "custom", key: "emballage") {
-                          value
-                        }
                       }
                     }
                   }
@@ -85,9 +82,6 @@ function Extension() {
         for (const edge of lines) {
           const node = edge?.node;
           const qty = node?.currentQuantity || 1;
-
-          console.log('GraphQL result brut :', JSON.stringify(result, null, 2));
-          
           const w = node?.variant?.inventoryItem?.measurement?.weight;
 
           let weightKg = 0;
