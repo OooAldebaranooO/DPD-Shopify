@@ -236,35 +236,43 @@ async function callDpdEprint(config: Config, order: OrderParams): Promise<LabelD
   return labels;
 }
 
-// ── DPD EPrint SOAP — Mode bulk (LabelData[]) ────────────────────────────────
+// ── DPD EPrint SOAP — Mode bulk PARALLÈLE ────────────────────────────────────
 
 async function callDpdEprintBulk(config: Config, labels: LabelData[]): Promise<LabelData[]> {
   const shippingDate = new Date().toLocaleDateString("fr-FR").split("/").join(".");
-  const result: LabelData[] = [];
 
-  for (const label of labels) {
-    const xml = await soapRequest(config, {
-      destName: label.destName, destCompany: label.destCompany,
-      destAddress: label.destAddress, destAddress2: label.destAddress2,
-      destZip: label.destZip, destCity: label.destCity, destPhone: label.destPhone,
-      orderName: label.orderName, ref1: label.sku || label.orderName,
-      weight: label.weight, shippingDate,
-    });
+  const results = await Promise.all(labels.map(async (label) => {
+    try {
+      const xml = await soapRequest(config, {
+        destName: label.destName, destCompany: label.destCompany,
+        destAddress: label.destAddress, destAddress2: label.destAddress2,
+        destZip: label.destZip, destCity: label.destCity, destPhone: label.destPhone,
+        orderName: label.orderName, ref1: label.sku || label.orderName,
+        weight: label.weight, shippingDate,
+      });
 
-    const labelMatch = xml.match(/<label>([\s\S]*?)<\/label>/);
-    const trackMatch = xml.match(/<parcelnumber>([\s\S]*?)<\/parcelnumber>/i);
-    const errMatch   = xml.match(/<ErrorMessage>([\s\S]*?)<\/ErrorMessage>/i);
-    if (errMatch) throw new Error(errMatch[1]);
+      const labelMatch = xml.match(/<label>([\s\S]*?)<\/label>/);
+      const trackMatch = xml.match(/<parcelnumber>([\s\S]*?)<\/parcelnumber>/i);
+      const errMatch   = xml.match(/<ErrorMessage>([\s\S]*?)<\/ErrorMessage>/i);
 
-    result.push({
-      ...label,
-      labelPdf:       labelMatch?.[1]?.trim() || null,
-      trackingNumber: trackMatch?.[1]?.trim() || null,
-      fromApi: true,
-    });
-  }
+      if (errMatch) {
+        console.error("Erreur DPD pour", label.orderName, errMatch[1]);
+        return label; // garde le label mock en cas d'erreur
+      }
 
-  return result;
+      return {
+        ...label,
+        labelPdf:       labelMatch?.[1]?.trim() || null,
+        trackingNumber: trackMatch?.[1]?.trim() || null,
+        fromApi: true,
+      };
+    } catch (e) {
+      console.error("Erreur SOAP pour", label.orderName, e);
+      return label; // fallback mock si erreur réseau
+    }
+  }));
+
+  return results;
 }
 
 // ── SOAP helper partagé ───────────────────────────────────────────────────────
