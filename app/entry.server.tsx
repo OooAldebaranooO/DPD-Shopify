@@ -8,13 +8,41 @@ import { addDocumentResponseHeaders } from "./shopify.server";
 
 export const streamTimeout = 5000;
 
+// Routes qui nécessitent CORS (appelées depuis extensions Shopify)
+const CORS_ROUTES = ["/prepare-labels", "/print-dpd-label"];
+
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
+
 export default async function handleRequest(
   request: Request,
   responseStatusCode: number,
   responseHeaders: Headers,
   reactRouterContext: EntryContext
 ) {
+  const url = new URL(request.url);
+  const needsCors = CORS_ROUTES.some(route => url.pathname.startsWith(route));
+
+  // Intercepte les preflight OPTIONS avant Remix
+  if (request.method === "OPTIONS" && needsCors) {
+    return new Response(null, {
+      status: 204,
+      headers: CORS_HEADERS,
+    });
+  }
+
   addDocumentResponseHeaders(request, responseHeaders);
+
+  // Ajoute les headers CORS sur toutes les réponses des routes concernées
+  if (needsCors) {
+    Object.entries(CORS_HEADERS).forEach(([key, value]) => {
+      responseHeaders.set(key, value);
+    });
+  }
+
   const userAgent = request.headers.get("user-agent");
   const callbackName = isbot(userAgent ?? '')
     ? "onAllReady"
@@ -50,8 +78,6 @@ export default async function handleRequest(
       }
     );
 
-    // Automatically timeout the React renderer after 6 seconds, which ensures
-    // React has enough time to flush down the rejected boundary contents
     setTimeout(abort, streamTimeout + 1000);
   });
 }
