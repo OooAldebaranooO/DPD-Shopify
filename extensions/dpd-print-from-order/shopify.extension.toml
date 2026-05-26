@@ -1,9 +1,14 @@
 api_version = "2025-10"
+
 [[extensions]]
 name = "dpd-print-from-order"
 handle = "dpd-print-from-order"
 type = "ui_extension"
 uid = "5abf31d8-5e8b-6736-8548-5b846ed75732e8a40ab9"
+
+[[extensions.targeting]]
+module = "./src/PrintActionExtension.tsx"
+target = "admin.order-details.print-action.render"
 
 [[extensions]]
 type = "ui_extension"
@@ -13,16 +18,3 @@ handle = "dpd-bulk-print"
 [[extensions.targeting]]
 module = "./src/BulkPrintExtension.tsx"
 target = "admin.order-index.selection-print-action.render"
-
-# Only 1 target can be specified for each admin print action extension
-
-[[extensions.targeting]]
-module = "./src/PrintActionExtension.tsx"
-target = "admin.order-details.print-action.render"
-
-# Valid extension targets:
-
-# - admin.order-details.print-action.render
-# - admin.order-index.selection-print-action.render
-# - admin.product-details.print-action.render
-# - admin.product-index.selection-print-action.render
