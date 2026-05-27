@@ -230,7 +230,7 @@ function Extension() {
                       checked={c.itemIds.includes(line.id)}
                       onChange={() => toggleItem(c.id, line.id)}
                     >
-                      {line.sku ? `${line.sku} — ` : ""}{line.title} (x{line.qty})
+                      {`${line.sku ? line.sku + ' — ' : ''}${line.title} (x${line.qty})`}
                     </s-checkbox>
                   ))}
 
