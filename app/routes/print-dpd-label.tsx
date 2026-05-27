@@ -305,10 +305,12 @@ async function parseShipmentResponse(xml: string): Promise<{
 
   // Log PDF text pour debug routing
   const labelMatch = xml.match(/<label>([\s\S]*?)<\/label>/);
-    if (labelMatch?.[1]) {
-      const text = extractPdfText(labelMatch[1].trim());
-      console.log("===PDF TEXT===", JSON.stringify(text));
-    }
+  if (labelMatch?.[1]) {
+    const buf = Buffer.from(labelMatch[1].trim(), 'base64');
+    const str = buf.toString('latin1');
+    // Log les 2000 premiers chars du PDF décodé
+    console.log("===PDF RAW===", JSON.stringify(str.slice(0, 2000)));
+  }
 
   return {
     trackingNumber: trackMatch?.[1]?.trim() || null,
