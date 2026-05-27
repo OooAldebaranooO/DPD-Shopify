@@ -247,9 +247,9 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
 
   const labelsWithData = await Promise.all(labels.map(async (label) => {
     // Zone 12/13 — BarCode complet 28 chars
-    const barCode28    = label.barCode || `0067100${agencyCode}${Math.floor(Math.random()*9999999999).toString().padStart(10,'0')}327902`;
+    const barCode28 = label.barCode || "";
     // Zone 9 / Ref 1 — BarcodeId (ex: 13735327170900)
-    const barcodeId    = label.trackingNumber || barCode28;
+    const barcodeId = label.trackingNumber || label.orderName.replace("#","");
     // Zone 10
     const serviceCode  = parseFloat(label.weight) <= 1 ? 'XD-B2C' : 'D-B2C';
     const serviceNum   = parseFloat(label.weight) <= 1 ? '328' : '327';
@@ -258,17 +258,16 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     // Ref 2
     const ref2Display  = `${(config.senderName2 || config.senderName || "EXPEDITEUR")!.toUpperCase().replace(/\s/g,"_")}_${label.orderName.replace("#","")}`;
 
-    // Zone 11 — Plan de transport (fake — dynamisable après whitelisting IP)
-    // Structure réelle DPD : L | FR-DPD-1063- | 063SA | 222 | 327-FR-63430
-    const fakeDepot    = "L";
-    const fakeRouting  = `FR-DPD-${agencyCode}-`;
-    const fakeSortCode = `${agencyCode}SA`;
-    const fakeTournee  = serviceNum;
-    const fakeCpDest   = `${serviceNum}-FR-${label.destZip}`;
+    // Zone 11 — Plan de transport
+    const transportDepot    = "";  // sera rempli après whitelisting IP
+    const transportRouting  = "";
+    const transportSortCode = "";
+    const transportTournee  = "";
+    const transportCpDest   = "";
 
     const [barcode128Url, refBarcodeUrl, aztecUrl] = await Promise.all([
       generateBarcode128(barCode28),
-      generateRefBarcode128(barcodeId),
+      generateRefBarcode128(label.sku || label.orderName.replace("#","")),
       generateAztecPng(barCode28),
     ]);
 
@@ -277,7 +276,7 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
       ? `${barCode28.slice(0,4)} ${barCode28.slice(4,7)} ${barCode28.slice(7,11)} ${barCode28.slice(11,15)} ${barCode28.slice(15,19)} ${barCode28.slice(19,21)} ${barCode28.slice(21,24)} ${barCode28.slice(24,27)} ${barCode28.slice(27)}`
       : barCode28;
 
-    return { ...label, barCode28, barcodeId, serviceCode, serviceNum, skuDisplay, ref2Display, fakeDepot, fakeRouting, fakeSortCode, fakeTournee, fakeCpDest, barcode128Url, refBarcodeUrl, aztecUrl, barcode13Legend };
+    return { ...label, barCode28, barcodeId, serviceCode, serviceNum, skuDisplay, ref2Display, barcode128Url, refBarcodeUrl, aztecUrl, barcode13Legend };
   }));
 
   return `<!DOCTYPE html>
@@ -362,7 +361,6 @@ ${labelsWithData.map(({
   destZip, destCity, destPhone, weight,
   barCode28, barcodeId, serviceCode, serviceNum,
   skuDisplay, ref2Display,
-  fakeDepot, fakeRouting, fakeSortCode, fakeTournee, fakeCpDest,
   barcode128Url, refBarcodeUrl, aztecUrl, barcode13Legend,
 }) => `  <div class="label">
     ${isMock ? `<div class="mock-banner">&#9888; Apercu - Mode test</div>` : ""}
@@ -432,14 +430,14 @@ ${labelsWithData.map(({
     <!-- Zone 11 : Plan de transport -->
     <div class="transport">
       <div class="transport-row1">
-        <div class="depot">${fakeDepot}</div>
-        <div class="routing">${fakeRouting}</div>
-        <div class="sort">${fakeSortCode}</div>
+        <div class="depot">—</div>
+        <div class="routing">—</div>
+        <div class="sort">—</div>
       </div>
       <div class="transport-row2">
-        <div class="depot-sm">${fakeTournee}</div>
-        <div class="routing-sub">${fakeCpDest}</div>
-        <div style="font-size:6pt;color:#999">${isMock ? "fake" : ""}</div>
+        <div class="depot-sm">—</div>
+        <div class="routing-sub">—</div>
+        <div class="sort-num">—</div>
       </div>
     </div>
 
