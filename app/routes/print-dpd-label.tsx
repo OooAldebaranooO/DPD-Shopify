@@ -116,6 +116,9 @@ async function soapRequest(config: Config, p: SoapParams): Promise<string> {
   // Si PROXY_URL n'est pas défini, appel direct (fallback)
   const WS_URL = process.env.PROXY_URL || "https://e-station.cargonet.software/dpd-eprintwebservice/eprintwebservice.asmx";
   const proxyToken = process.env.PROXY_SECRET || "";
+  const predictService = isMobilePhone(p.destPhone)
+    ? `<services><contact><type>Predict</type><value>${escapeXml(p.destPhone)}</value></contact></services>`
+    : "";
   const body = `<?xml version="1.0" encoding="utf-8"?>
 <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:imt="http://www.cargonet.software">
   <soap:Header><imt:UserCredentials><imt:userid>${config.login}</imt:userid><imt:password>${config.password}</imt:password></imt:UserCredentials></soap:Header>
@@ -143,7 +146,7 @@ async function soapRequest(config: Config, p: SoapParams): Promise<string> {
           <city>${escapeXml(config.senderCity ?? "")}</city>
           <phoneNumber>${escapeXml(config.senderPhone ?? "")}</phoneNumber>
         </shipperaddress>
-        ${isMobilePhone(p.destPhone) ? `<services><contact><type>Predict</type><value>${escapeXml(p.destPhone)}</value></contact></services>` : ``}
+        ${predictService}
         <weight>${p.weight}</weight>
         <shippingdate>${p.shippingDate}</shippingdate>
         <referencenumber>${escapeXml(p.ref1.slice(0, 35))}</referencenumber>
