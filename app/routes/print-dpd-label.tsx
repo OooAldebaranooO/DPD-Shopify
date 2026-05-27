@@ -286,10 +286,10 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     ]);
 
     // Zone 13 — légende sous le grand barcode (formatée si 28 chars réels, brut si mock)
-    // Légende : retire % initial, formate CP7 AGENCY4 NUMEXP10 SERVICE3 ISO3 X
+    // Légende : retire % initial, format XXXX XXX XXXX XXXX XXXX XX XXX XXX X
     const b = label.barCode ? barCode28.replace(/^%/, "") : barCode28;
-    const barcode13Legend = label.barCode && b.length >= 28
-      ? `${b.slice(0,7)} ${b.slice(7,11)} ${b.slice(11,21)} ${b.slice(21,24)} ${b.slice(24,27)} ${b.slice(27)}`
+    const barcode13Legend = label.barCode && b.length >= 27
+      ? `${b.slice(0,4)} ${b.slice(4,7)} ${b.slice(7,11)} ${b.slice(11,15)} ${b.slice(15,19)} ${b.slice(19,21)} ${b.slice(21,24)} ${b.slice(24,27)} X`
       : b;
 
     return { ...label, trackingNumber, barCode28, serviceCode, serviceNum, ref1Display, ref2Display, skuDisplay, barcode128Url, refBarcodeUrl, aztecUrl, barcode13Legend };
@@ -403,8 +403,8 @@ ${labelsWithData.map(({
         <div class="middle-left-refs">
           <div class="row"><span class="lbl">Contact</span><span>Tel ${destPhone || "-"}</span></div>
           <div class="row"><span class="lbl">Ref 1</span><span>${ref1Display}</span></div>
-          <div class="row"><span class="lbl">Ref 2</span><span>${ref2Display}</span></div>
           ${skuDisplay ? `<div class="row"><span class="lbl">SKUs</span><span>${skuDisplay}</span></div>` : ""}
+          <div class="row"><span class="lbl">Ref 2</span><span>${ref2Display}</span></div>
         </div>
         <!-- Zone 8 : barcode DPD (barCode28) + logo Predict -->
         <div class="middle-left-bottom">
