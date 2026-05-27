@@ -172,7 +172,6 @@ async function callDpdEprint(config: Config, order: OrderParams): Promise<LabelD
   const weightsList  = String(order.weights || "1").split(",").map(w => parseFloat(w) || 0);
   const skusList     = String(order.skusParam || "").split("|").map(s => decodeURIComponent(s));
   const titlesList   = String(order.titlesParam || "").split("|").map(s => decodeURIComponent(s));
-  // Ref2 = senderName2_commande (ex: LIVEDECO_95693)
   const ref2Base     = (config.senderName2 || "LIVEDECO")!.toUpperCase().replace(/\s/g, "_");
   const labels: LabelData[] = [];
   for (let i = 1; i <= order.count; i++) {
@@ -184,10 +183,8 @@ async function callDpdEprint(config: Config, order: OrderParams): Promise<LabelD
       destAddress: order.destAddress, destAddress2: order.destAddress2,
       destZip: order.destZip, destCity: order.destCity, destPhone: order.destPhone,
       orderName: order.orderName, shopifyOrderId: order.shopifyOrderId,
-      // Ref1 envoyée à DPD = shopifyOrderId (ID numérique)
       ref1: order.shopifyOrderId || order.orderName,
-      // Ref2 = LIVEDECO_95693
-      ref2: `${ref2Base}_${order.orderName.replace("#", "")}`,
+      ref2: buildRef2(ref2Base, order.orderName),
       weight: itemWeight, shippingDate,
     });
     const { trackingNumber, barCode, error } = await parseShipmentResponse(xml);
@@ -208,7 +205,7 @@ async function callDpdEprintBulk(config: Config, labels: LabelData[]): Promise<L
         destZip: label.destZip, destCity: label.destCity, destPhone: label.destPhone,
         orderName: label.orderName, shopifyOrderId: label.shopifyOrderId,
         ref1: label.shopifyOrderId || label.orderName,
-        ref2: `${ref2Base}_${label.orderName.replace("#", "")}`,
+        ref2: buildRef2(ref2Base, label.orderName),
         weight: label.weight, shippingDate,
       });
       const { trackingNumber, barCode, error } = await parseShipmentResponse(xml);
@@ -222,11 +219,22 @@ function escapeXml(str: string): string {
   return String(str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 }
 
+// Évite le doublon LIVEDECO_LIVEDECO_xxx si orderName contient déjà le préfixe
+function buildRef2(prefix: string, orderName: string): string {
+  const name = orderName.replace("#", "");
+  return name.toUpperCase().startsWith(prefix) ? name : `${prefix}_${name}`;
+}
+
 function buildMockLabels(orderName: string, shopifyOrderId: string, count: number, destName: string, destCompany: string, destAddress: string, destAddress2: string, destZip: string, destCity: string, destPhone: string, weights: string, skusParam: string, titlesParam: string): LabelData[] {
   const weightsList = String(weights || "1").split(",").map(w => parseFloat(w) || 0);
   const skusList    = String(skusParam  || "").split("|").map(s => decodeURIComponent(s));
   const titlesList  = String(titlesParam|| "").split("|").map(s => decodeURIComponent(s));
-  return Array.from({ length: count }, (_, i) => ({ orderName, shopifyOrderId, index: i + 1, total: count, destName, destCompany, destAddress, destAddress2, destZip, destCity, destPhone, weight: Math.max(0.01, weightsList[i] ?? weightsList[0] ?? 1).toFixed(2), sku: skusList[i] ?? "", title: titlesList[i] ?? "", labelPdf: null, trackingNumber: null, barCode: null, fromApi: false }));
+  return Array.from({ length: count }, (_, i) => ({
+    orderName, shopifyOrderId, index: i + 1, total: count, destName, destCompany, destAddress, destAddress2, destZip, destCity, destPhone,
+    weight: Math.max(0.01, weightsList[i] ?? weightsList[0] ?? 1).toFixed(2),
+    sku: skusList[i] ?? "", title: titlesList[i] ?? "",
+    labelPdf: null, trackingNumber: null, barCode: null, fromApi: false,
+  }));
 }
 
 async function generateBarcode128(value: string): Promise<string> {
@@ -272,8 +280,9 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     const serviceNum     = parseFloat(label.weight) <= 1 ? '328' : '327';
     // Ref 1 = ID numérique Shopify (ex: 13735327170900)
     const ref1Display    = label.shopifyOrderId || label.orderName;
-    // Ref 2 = LIVEDECO_95693
-    const ref2Display    = `${ref2Base}_${label.orderName.replace("#", "")}`;
+    // Ref 2 = LIVEDECO_95693 — sans doublon si orderName contient déjà le préfixe
+    const orderNum       = label.orderName.replace("#", "");
+    const ref2Display    = buildRef2(ref2Base, orderNum);
     // SKUs
     const skuDisplay     = label.sku || "";
 
@@ -283,10 +292,11 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
       generateAztecPng(barCode28),         // Zone 5 — Aztec DPD
     ]);
 
-    // Zone 13 — légende formatée
-    const barcode13Legend = barCode28.length >= 20
-      ? `${barCode28.slice(0,4)} ${barCode28.slice(4,7)} ${barCode28.slice(7,11)} ${barCode28.slice(11,15)} ${barCode28.slice(15,19)} ${barCode28.slice(19,21)} ${barCode28.slice(21,24)} ${barCode28.slice(24,27)} ${barCode28.slice(27)}`
-      : "";
+    // Zone 13 — légende formatée du barcode 28 chars
+    // Format : % CP7 AGENCY4 NUMEXP10 SERVICE3 ISO3
+    const barcode13Legend = barCode28.length >= 28
+      ? `${barCode28.slice(0,1)} ${barCode28.slice(1,8)} ${barCode28.slice(8,12)} ${barCode28.slice(12,22)} ${barCode28.slice(22,25)} ${barCode28.slice(25,28)}`
+      : barCode28;
 
     return { ...label, trackingNumber, barCode28, serviceCode, serviceNum, ref1Display, ref2Display, skuDisplay, barcode128Url, refBarcodeUrl, aztecUrl, barcode13Legend };
   }));
@@ -337,7 +347,6 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     .tracking { display: grid; grid-template-columns: 1fr auto; padding: 1mm 2mm; border-bottom: 1px solid #000; align-items: center; }
     .track-label { font-size: 4.5pt; color: #444; }
     .tracking-number { font-size: 16pt; font-weight: 700; letter-spacing: 1px; line-height: 1; }
-    .tracking-pending { font-size: 7pt; color: #aaa; font-style: italic; }
     .service-block { text-align: right; }
     .service-code { font-size: 9pt; font-weight: 700; }
     .service-lbl { font-size: 4.5pt; color: #444; }
@@ -353,7 +362,6 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     .barcode-img { width: 92%; height: auto; image-rendering: pixelated; }
     .barcode-legend { font-size: 5pt; color: #444; margin-top: 0.5mm; text-align: center; letter-spacing: 0.5px; }
     .barcode-meta { font-size: 4pt; color: #888; margin-top: 0.5mm; text-align: center; }
-    .barcode-pending { font-size: 6pt; color: #aaa; font-style: italic; text-align: center; }
     @media print { * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } }
   </style>
 </head>
@@ -423,9 +431,7 @@ ${labelsWithData.map(({
     <div class="tracking">
       <div>
         <div class="track-label">Track</div>
-        ${trackingNumber
-          ? `<div class="tracking-number">${trackingNumber}</div>`
-          : `<div class="tracking-pending">Disponible apres whitelisting IP DPD</div>`}
+        <div class="tracking-number">${trackingNumber || ""}</div>
       </div>
       <div class="service-block">
         <div class="service-code">${serviceCode}</div>
@@ -447,11 +453,11 @@ ${labelsWithData.map(({
       </div>
     </div>
 
-    <!-- Zone 12+13 : Grand barcode DPD + legende -->
+    <!-- Zone 12+13 : Grand barcode DPD 28 chars + legende -->
     <div class="barcode-section">
       ${barcode128Url
         ? `<img class="barcode-img" src="${barcode128Url}" alt="Code-barres DPD"/>`
-        : `<div class="barcode-pending">Barcode DPD disponible apres whitelisting IP</div>`}
+        : ""}
       ${barcode13Legend ? `<div class="barcode-legend">${barcode13Legend}</div>` : ""}
       <div class="barcode-meta">${new Date().toLocaleDateString("fr-FR")} ${new Date().toLocaleTimeString("fr-FR")} &middot; ${orderName} &middot; Colis ${index}/${total}</div>
     </div>
