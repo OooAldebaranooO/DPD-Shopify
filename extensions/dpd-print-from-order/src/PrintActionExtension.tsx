@@ -243,7 +243,7 @@ function Extension() {
               <s-banner tone="warning">
                 {unassignedLines.map(l => {
                   const missing = l.qty - assignedQty(l.id);
-                  return `⚠️ ${l.sku || l.title} : ${missing} unité(s) non assignée(s)`;
+                  return `${l.sku || l.title} : ${missing} unité(s) non assignée(s)`;
                 }).join(" | ")}
               </s-banner>
             )}

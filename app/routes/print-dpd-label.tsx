@@ -50,7 +50,8 @@ interface LabelData {
   sku:            string;
   title:          string;
   labelPdf:       string | null;
-  trackingNumber: string | null;
+  trackingNumber: string | null; // BarcodeId (numéro d'expédition)
+  barCode:        string | null; // BarCode complet 28 chars pour le scan
   fromApi:        boolean;
 }
 
@@ -145,6 +146,7 @@ export async function loader({ request }: { request: Request }) {
               title:          item.title,
               labelPdf:       null,
               trackingNumber: null,
+              barCode:        null,
               fromApi:        false,
             });
           });
@@ -227,9 +229,8 @@ async function callDpdEprint(config: Config, order: OrderParams): Promise<LabelD
       weight: itemWeight, shippingDate,
     });
 
-    const trackMatch = xml.match(/<parcelnumber>([\s\S]*?)<\/parcelnumber>/i);
-    const errMatch   = xml.match(/<ErrorMessage>([\s\S]*?)<\/ErrorMessage>/i);
-    if (errMatch) throw new Error(errMatch[1]);
+    const { trackingNumber, barCode, error } = parseShipmentResponse(xml);
+    if (error) throw new Error(error);
 
     labels.push({
       orderName: order.orderName, index: i, total: order.count,
@@ -237,9 +238,7 @@ async function callDpdEprint(config: Config, order: OrderParams): Promise<LabelD
       destAddress: order.destAddress, destAddress2: order.destAddress2,
       destZip: order.destZip, destCity: order.destCity, destPhone: order.destPhone,
       weight: itemWeight, sku: itemSku, title: itemTitle,
-      labelPdf: null,
-      trackingNumber: trackMatch?.[1]?.trim() || null,
-      fromApi: true,
+      labelPdf: null, trackingNumber, barCode, fromApi: true,
     });
   }
 
@@ -264,20 +263,45 @@ async function callDpdEprintBulk(config: Config, labels: LabelData[]): Promise<L
         weight: label.weight, shippingDate,
       });
 
-      const trackMatch = xml.match(/<parcelnumber>([\s\S]*?)<\/parcelnumber>/i);
-      const errMatch   = xml.match(/<ErrorMessage>([\s\S]*?)<\/ErrorMessage>/i);
+      const { trackingNumber, barCode, error } = parseShipmentResponse(xml);
 
-      if (errMatch) {
-        console.error("Erreur DPD pour", label.orderName, ":", errMatch[1]);
+      if (error) {
+        console.error("Erreur DPD pour", label.orderName, ":", error);
         return label;
       }
 
-      return { ...label, labelPdf: null, trackingNumber: trackMatch?.[1]?.trim() || null, fromApi: true };
+      return { ...label, labelPdf: null, trackingNumber, barCode, fromApi: true };
     } catch (e) {
       console.error("Erreur SOAP pour", label.orderName, e);
       return label;
     }
   }));
+}
+
+// ── Parse réponse SOAP DPD ────────────────────────────────────────────────────
+
+function parseShipmentResponse(xml: string): {
+  trackingNumber: string | null;
+  barCode:        string | null;
+  error:          string | null;
+} {
+  const errMatch   = xml.match(/<ErrorMessage>([\s\S]*?)<\/ErrorMessage>/i);
+  if (errMatch) return { trackingNumber: null, barCode: null, error: errMatch[1] };
+
+  // BarcodeId = numéro d'expédition (affiché en gros sur l'étiquette)
+  const trackMatch = xml.match(/<BarcodeId>([\s\S]*?)<\/BarcodeId>/i)
+                  || xml.match(/<parcelnumber>([\s\S]*?)<\/parcelnumber>/i);
+
+  // BarCode = barcode complet 28 chars (pour le scan et le Code 128)
+  const barMatch   = xml.match(/<BarCode>([\s\S]*?)<\/BarCode>/i);
+
+  console.log("DPD réponse XML (300 chars):", xml.slice(0, 300));
+
+  return {
+    trackingNumber: trackMatch?.[1]?.trim() || null,
+    barCode:        barMatch?.[1]?.trim()   || null,
+    error:          null,
+  };
 }
 
 // ── SOAP helper ───────────────────────────────────────────────────────────────
@@ -295,7 +319,7 @@ async function soapRequest(config: Config, p: SoapParams): Promise<string> {
     </imt:UserCredentials>
   </soap:Header>
   <soap:Body>
-    <CreateShipmentBc xmlns="http://www.cargonet.software">
+    <CreateShipmentWithLabelsBc xmlns="http://www.cargonet.software">
       <request>
         <customer_countrycode>250</customer_countrycode>
         <customer_centernumber>${config.agencyCode}</customer_centernumber>
@@ -335,8 +359,12 @@ async function soapRequest(config: Config, p: SoapParams): Promise<string> {
         <shippingdate>${p.shippingDate}</shippingdate>
         <referencenumber>${escapeXml(p.ref1.slice(0, 35))}</referencenumber>
         <reference2>${escapeXml(p.ref2.slice(0, 35))}</reference2>
+        <labelType>
+          <type>PDF</type>
+          <format>A6</format>
+        </labelType>
       </request>
-    </CreateShipmentBc>
+    </CreateShipmentWithLabelsBc>
   </soap:Body>
 </soap:Envelope>`;
 
@@ -344,14 +372,12 @@ async function soapRequest(config: Config, p: SoapParams): Promise<string> {
     method: "POST",
     headers: {
       "Content-Type": "text/xml; charset=utf-8",
-      "SOAPAction": "http://www.cargonet.software/CreateShipmentBc",
+      "SOAPAction": "http://www.cargonet.software/CreateShipmentWithLabelsBc",
     },
     body,
   });
 
-  const xml = await response.text();
-  console.log("DPD EPrint réponse:", xml.slice(0, 300));
-  return xml;
+  return response.text();
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -376,7 +402,7 @@ function buildMockLabels(
     weight:   Math.max(0.01, weightsList[i] ?? weightsList[0] ?? 1).toFixed(2),
     sku:      skusList[i]   ?? "",
     title:    titlesList[i] ?? "",
-    labelPdf: null, trackingNumber: null, fromApi: false,
+    labelPdf: null, trackingNumber: null, barCode: null, fromApi: false,
   }));
 }
 
@@ -408,21 +434,34 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
   const agencyCode = config.agencyCode || "038";
 
   const labelsWithData = await Promise.all(labels.map(async (label) => {
-    const trackingNumber = label.trackingNumber
+    // En prod : on utilise le vrai BarCode (28 chars) pour le scan
+    // En mock : on génère un numéro fictif
+    const barcodeValue   = label.barCode || label.trackingNumber
       || `1038${Math.floor(Math.random()*9000+1000)}${Math.floor(Math.random()*9000+1000)}${Math.floor(Math.random()*90+10)}C`;
-    const fakeRouting = `FR-DPD-${Math.floor(Math.random()*9000+1000)}-${Math.floor(Math.random()*900+100)}-FR-${config.senderZip || "38120"}`;
-    const fakeSort    = `${agencyCode}SA`;
-    // 🔧 Service code dynamique selon doc DPD : ≤1kg = XD-B2C, >1kg = D-B2C (service Predict)
-    const serviceCode = parseFloat(label.weight) <= 1 ? 'XD-B2C' : 'D-B2C';
-    const ref1Display = label.sku || label.orderName.replace("#", "");
-    const ref2Display = `${(config.senderName2 || config.senderName || "EXPEDITEUR")!.toUpperCase().replace(/\s/g,"_")}_${label.orderName.replace("#","")}`;
+
+    // BarcodeId = numéro d'expédition affiché en gros
+    const displayNumber  = label.trackingNumber || barcodeValue;
+
+    // Service code selon doc DPD : ≤1kg = XD-B2C, >1kg = D-B2C (Predict)
+    const serviceCode    = parseFloat(label.weight) <= 1 ? 'XD-B2C' : 'D-B2C';
+
+    // Agence DPD depuis la config (vraie valeur)
+    const agenceDisplay  = agencyCode;
+
+    const ref1Display    = label.sku || label.orderName.replace("#", "");
+    const ref2Display    = `${(config.senderName2 || config.senderName || "EXPEDITEUR")!.toUpperCase().replace(/\s/g,"_")}_${label.orderName.replace("#","")}`;
 
     const [barcodeDataUrl, qrSvg] = await Promise.all([
-      generateBarcodeBase64(trackingNumber),
-      generateQrSvg(trackingNumber),
+      generateBarcodeBase64(barcodeValue),
+      generateQrSvg(barcodeValue),
     ]);
 
-    return { ...label, trackingNumber, fakeRouting, fakeSort, serviceCode, ref1Display, ref2Display, barcodeDataUrl, qrSvg };
+    return {
+      ...label, barcodeValue, displayNumber,
+      serviceCode, agenceDisplay,
+      ref1Display, ref2Display,
+      barcodeDataUrl, qrSvg,
+    };
   }));
 
   return `<!DOCTYPE html>
@@ -464,13 +503,13 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     .qr-block { padding: 1.5mm; display: flex; align-items: center; justify-content: center; width: 27.65mm; height: 27.65mm; }
     .qr-block svg { width: 100%; height: 100%; }
     .tracking { display: grid; grid-template-columns: 1fr auto; padding: 1mm 2mm; border-bottom: 1px solid #000; align-items: center; }
-    .tracking-number { font-size: 14pt; font-weight: 700; }
+    .tracking-number { font-size: 14pt; font-weight: 700; letter-spacing: 0.5px; }
     .service-code { text-align: right; }
     .service-code .code { font-size: 10pt; font-weight: 700; }
     .service-code .lbl { font-size: 5pt; color: #444; }
     .footer-codes { display: grid; grid-template-columns: auto 1fr auto; align-items: center; padding: 1mm 2mm; border-bottom: 1px solid #000; gap: 2mm; }
     .depot-code { background: #000 !important; color: #fff !important; font-size: 13pt; font-weight: 700; padding: 0.5mm 3mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .routing-code { font-size: 14pt; font-weight: 700; text-align: center; }
+    .routing-code { font-size: 10pt; font-weight: 700; text-align: center; word-break: break-all; }
     .sort-code { background: #000 !important; color: #fff !important; font-size: 13pt; font-weight: 700; padding: 0.5mm 3mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .barcode-bottom { padding: 1.5mm 2mm 1mm; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     .barcode-img { width: 90%; height: auto; image-rendering: pixelated; }
@@ -482,9 +521,10 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
 ${labelsWithData.map(({
   orderName, index, total, destName, destCompany, destAddress, destAddress2,
   destZip, destCity, destPhone, weight,
-  trackingNumber, fakeRouting, fakeSort, serviceCode, ref1Display, ref2Display, barcodeDataUrl, qrSvg
+  barcodeValue, displayNumber, serviceCode, agenceDisplay,
+  ref1Display, ref2Display, barcodeDataUrl, qrSvg
 }) => `  <div class="label">
-    ${isMock ? `<div class="mock-banner">&#9888;&#65039; Apercu - En attente de connexion a l'API DPD</div>` : ""}
+    ${isMock ? `<div class="mock-banner">&#9888;&#65039; Apercu - Mode test (credentials DPD manquants)</div>` : ""}
     <div class="header">
       <div class="header-dest">
         <div class="dest-name">${destCompany ? `${destCompany}<br/><span style="font-size:8pt;font-weight:400">${destName}</span>` : destName}</div>
@@ -499,8 +539,7 @@ ${labelsWithData.map(({
           ${config.senderZip || ""} ${config.senderCity || ""}
         </div>
         <div class="header-right-bottom">
-          <div class="lbl">DPD-Etablissement ${agencyCode}</div>
-          215 rue Grande Batie<br>38430 Moirans
+          <div class="lbl">DPD-Etablissement ${agenceDisplay}</div>
         </div>
       </div>
       <img src="https://dpd-shopify-oken.vercel.app/dpd-logo.png" alt="DPD" class="dpd-logo"/>
@@ -521,16 +560,16 @@ ${labelsWithData.map(({
       </div>
     </div>
     <div class="tracking">
-      <div class="tracking-number"><span style="font-size:20pt;font-weight:900">${trackingNumber.slice(0, 4)}</span><span style="font-size:14pt;font-weight:700">${trackingNumber.slice(4)}</span></div>
+      <div class="tracking-number">${displayNumber}</div>
       <div class="service-code"><div class="code">${serviceCode}</div><div class="lbl">Service</div></div>
     </div>
     <div class="footer-codes">
-      <div class="depot-code">L</div>
-      <div class="routing-code">${fakeRouting}</div>
-      <div class="sort-code">${fakeSort}</div>
+      <div class="depot-code">${agenceDisplay}</div>
+      <div class="routing-code">${barcodeValue}</div>
+      <div class="sort-code">${agenceDisplay}SA</div>
     </div>
     <div class="barcode-bottom">
-      ${barcodeDataUrl ? `<img class="barcode-img" src="${barcodeDataUrl}" alt="Code-barres ${trackingNumber}"/>` : `<span style="font-size:7pt;color:#999">Barcode indisponible</span>`}
+      ${barcodeDataUrl ? `<img class="barcode-img" src="${barcodeDataUrl}" alt="Code-barres"/>` : `<span style="font-size:7pt;color:#999">Barcode indisponible</span>`}
       <div class="barcode-text">${new Date().toLocaleDateString("fr-FR")} ${new Date().toLocaleTimeString("fr-FR")} &middot; Commande : ${orderName} &middot; Colis : ${index}/${total}</div>
     </div>
   </div>`).join("\n")}
