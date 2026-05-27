@@ -230,6 +230,56 @@ function buildMockLabels(orderName: string, shopifyOrderId: string, count: numbe
   }));
 }
 
+// Construit le contenu du code Aztec DPD selon le format GS1
+// [)>0 + agence3 + CP5 + ISO3 + service3 + BarcodeId14 + GEOP + 139 + ref1 + index/total + poids + N + adresse + ...
+function buildAztecContent(params: {
+  trackingNumber: string; barCode28: string; serviceNum: string;
+  destName: string; destAddress: string; destCity: string; destZip: string; destPhone: string;
+  ref2: string; index: number; total: number; weight: string;
+  senderName: string; senderAddress: string; senderZip: string; senderCity: string;
+  shopifyOrderId: string;
+}): string {
+  const { trackingNumber, serviceNum, destName, destAddress, destCity, destZip,
+          destPhone, ref2, index, total, weight, senderName, senderAddress,
+          senderZip, senderCity, shopifyOrderId } = params;
+
+  // Agence livreur = 3 premiers chiffres du trackingNumber (ex: 1038 -> 103)
+  const agenceDest = trackingNumber ? trackingNumber.slice(0, 3) : "103";
+  // CP dest sur 5 chars
+  const cp5 = destZip.replace(/\D/g, "").slice(0, 5).padStart(5, "0");
+  // BarcodeId = trackingNumber (14 chars: agence4 + numexp10)
+  const barcodeId = trackingNumber || "";
+  // Poids formaté ex: 04.00KG
+  const poidsStr = parseFloat(weight).toFixed(2).padStart(5, "0") + "KG";
+  // Index/total ex: 001/001
+  const idx = String(index).padStart(3, "0");
+  const tot = String(total).padStart(3, "0");
+
+  const lines = [
+    `[)>0`,
+    `${agenceDest}${cp5}250${serviceNum}${barcodeId}`,
+    `GEOP`,
+    `139`,
+    shopifyOrderId,
+    `${idx}/${tot}`,
+    poidsStr,
+    `N`,
+    destAddress.toUpperCase(),
+    destCity.toUpperCase(),
+    ` ${destName.toUpperCase()}`,
+    `07G03000~~~`,
+    destPhone,
+    destPhone,
+    `F~${cp5}`,
+    ref2,
+    ref2,
+    `007D`,
+    `07S011${senderName.toUpperCase()}${senderAddress.toUpperCase()}${senderCity.toUpperCase()}${senderZip}250`,
+    `07S0401${senderName.toUpperCase()}${senderAddress.toUpperCase()}F~${senderZip}~${senderCity.toUpperCase()}`,
+  ];
+  return lines.join("");
+}
+
 async function generateBarcode128(value: string): Promise<string> {
   if (!value) return "";
   try {
@@ -279,10 +329,33 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     // SKUs
     const skuDisplay     = label.sku || "";
 
+    // Contenu Aztec avec toutes les données DPD
+    const aztecContent = label.trackingNumber
+      ? buildAztecContent({
+          trackingNumber: label.trackingNumber,
+          barCode28,
+          serviceNum,
+          destName: label.destName,
+          destAddress: label.destAddress,
+          destCity: label.destCity,
+          destZip: label.destZip,
+          destPhone: label.destPhone,
+          ref2: ref2Display,
+          index: label.index,
+          total: label.total,
+          weight: label.weight,
+          senderName: config.senderName || "",
+          senderAddress: config.senderAddress || "",
+          senderZip: config.senderZip || "",
+          senderCity: config.senderCity || "",
+          shopifyOrderId: label.shopifyOrderId,
+        })
+      : barCode28;
+
     const [barcode128Url, refBarcodeUrl, aztecUrl] = await Promise.all([
       generateBarcode128(barCode28),       // Zone 12 — grand barcode DPD en bas
       generateRefBarcode128(barCode28),    // Zone 8 — petit barcode DPD (même que zone 12)
-      generateAztecPng(barCode28),         // Zone 5 — Aztec DPD
+      generateAztecPng(aztecContent),      // Zone 5 — Aztec DPD avec toutes les données
     ]);
 
     // Zone 13 — légende sous le grand barcode (formatée si 28 chars réels, brut si mock)
@@ -403,8 +476,8 @@ ${labelsWithData.map(({
         <div class="middle-left-refs">
           <div class="row"><span class="lbl">Contact</span><span>Tel ${destPhone || "-"}</span></div>
           <div class="row"><span class="lbl">Ref 1</span><span>${ref1Display}</span></div>
-          ${skuDisplay ? `<div class="row"><span class="lbl">SKUs</span><span>${skuDisplay}</span></div>` : ""}
           <div class="row"><span class="lbl">Ref 2</span><span>${ref2Display}</span></div>
+          ${skuDisplay ? `<div class="row"><span class="lbl">SKUs</span><span>${skuDisplay}</span></div>` : ""}
         </div>
         <!-- Zone 8 : barcode DPD (barCode28) + logo Predict -->
         <div class="middle-left-bottom">
