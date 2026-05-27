@@ -106,11 +106,6 @@ export async function loader({ request }: { request: Request }) {
     }
   }
 
-  if (token && labels.length > 0 && !isMock) {
-    try { labels = await callDpdEprintBulk(config, labels); }
-    catch (e) { console.error("Erreur EPrint bulk:", (e as Error).message); }
-  }
-
   return new Response(await renderLabels(labels, config, isMock), {
     headers: { "Content-Type": "text/html; charset=utf-8", "Access-Control-Allow-Origin": "*", "X-Frame-Options": "ALLOWALL", "Content-Security-Policy": "frame-ancestors *" },
   });
@@ -197,26 +192,6 @@ async function callDpdEprint(config: Config, order: OrderParams): Promise<LabelD
   return labels;
 }
 
-async function callDpdEprintBulk(config: Config, labels: LabelData[]): Promise<LabelData[]> {
-  const shippingDate = new Date().toLocaleDateString("fr-FR").split("/").join(".");
-  const ref2Base     = (config.senderName2 || "LIVEDECO")!.toUpperCase().replace(/\s/g, "_");
-  return Promise.all(labels.map(async (label) => {
-    try {
-      const xml = await soapRequest(config, {
-        destName: label.destName, destCompany: label.destCompany,
-        destAddress: label.destAddress, destAddress2: label.destAddress2,
-        destZip: label.destZip, destCity: label.destCity, destPhone: label.destPhone,
-        orderName: label.orderName, shopifyOrderId: label.shopifyOrderId,
-        ref1: label.shopifyOrderId || label.orderName,
-        ref2: buildRef2(ref2Base, label.orderName),
-        weight: label.weight, shippingDate,
-      });
-      const { trackingNumber, barCode, error } = await parseShipmentResponse(xml);
-      if (error) { console.error("Erreur DPD pour", label.orderName, ":", error); return label; }
-      return { ...label, labelPdf: null, trackingNumber, barCode, fromApi: true };
-    } catch (e) { console.error("Erreur SOAP pour", label.orderName, e); return label; }
-  }));
-}
 
 function escapeXml(str: string): string {
   return String(str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
@@ -410,8 +385,8 @@ ${labelsWithData.map(({
         <div class="middle-left-refs">
           <div class="row"><span class="lbl">Contact</span><span>Tel ${destPhone || "-"}</span></div>
           <div class="row"><span class="lbl">Ref 1</span><span>${ref1Display}</span></div>
-          <div class="row"><span class="lbl">Ref 2</span><span>${ref2Display}</span></div>
           ${skuDisplay ? `<div class="row"><span class="lbl">SKUs</span><span>${skuDisplay}</span></div>` : ""}
+          <div class="row"><span class="lbl">Ref 2</span><span>${ref2Display}</span></div>
         </div>
         <!-- Zone 8 : barcode DPD (barCode28) + logo Predict -->
         <div class="middle-left-bottom">

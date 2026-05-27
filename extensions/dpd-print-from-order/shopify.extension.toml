@@ -9,14 +9,3 @@ uid = "5abf31d8-5e8b-6736-8548-5b846ed75732e8a40ab9"
 [[extensions.targeting]]
 module = "./src/PrintActionExtension.tsx"
 target = "admin.order-details.print-action.render"
-
-[[extensions]]
-type = "ui_extension"
-name = "DPD Bulk Print"
-handle = "dpd-bulk-print"
-
-uid = "23a01864-e561-3d27-6692-0873dff7c22fefff6b91"
-
-[[extensions.targeting]]
-module = "./src/BulkPrintExtension.tsx"
-target = "admin.order-index.selection-print-action.render"
