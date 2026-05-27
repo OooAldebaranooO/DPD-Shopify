@@ -268,7 +268,7 @@ function Extension() {
                     const ci        = c.items.find(i => i.itemId === line.id);
                     const current   = ci?.qty ?? 0;
                     const remaining = line.qty - assignedQty(line.id);
-                    const label     = `${line.sku ? line.sku + ' — ' : ''}${line.title}`;
+                    const label     = line.sku || line.title;
 
                     return (
                       <s-stack direction="block" gap="none">

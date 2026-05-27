@@ -444,6 +444,7 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
 
     // Service code selon doc DPD : ≤1kg = XD-B2C, >1kg = D-B2C (Predict)
     const serviceCode    = parseFloat(label.weight) <= 1 ? 'XD-B2C' : 'D-B2C';
+    const predictLogo = `<img src="https://dpd-shopify-oken.vercel.app/predict-logo.png" style="height:8px;vertical-align:middle" alt="Predict"/> Predict`;
 
     // Agence DPD depuis la config (vraie valeur)
     const agenceDisplay  = agencyCode;
@@ -458,7 +459,7 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
 
     return {
       ...label, barcodeValue, displayNumber,
-      serviceCode, agenceDisplay,
+      serviceCode, agenceDisplay, predictLogo,
       ref1Display, ref2Display,
       barcodeDataUrl, qrSvg,
     };
@@ -521,7 +522,7 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
 ${labelsWithData.map(({
   orderName, index, total, destName, destCompany, destAddress, destAddress2,
   destZip, destCity, destPhone, weight,
-  barcodeValue, displayNumber, serviceCode, agenceDisplay,
+  barcodeValue, displayNumber, serviceCode, agenceDisplay, predictLogo,
   ref1Display, ref2Display, barcodeDataUrl, qrSvg
 }) => `  <div class="label">
     ${isMock ? `<div class="mock-banner">&#9888;&#65039; Apercu - Mode test (credentials DPD manquants)</div>` : ""}
@@ -540,6 +541,8 @@ ${labelsWithData.map(({
         </div>
         <div class="header-right-bottom">
           <div class="lbl">DPD-Etablissement ${agenceDisplay}</div>
+          ${config.senderAddress || ""}<br>
+          ${config.senderZip || ""} ${config.senderCity || ""}
         </div>
       </div>
       <img src="https://dpd-shopify-oken.vercel.app/dpd-logo.png" alt="DPD" class="dpd-logo"/>
@@ -549,7 +552,7 @@ ${labelsWithData.map(({
         <div class="row"><span class="lbl">Contact</span><span>Tel ${destPhone || "-"}</span></div>
         <div class="row"><span class="lbl">Ref 1</span><span>${ref1Display}</span></div>
         <div class="row"><span class="lbl">Ref 2</span><span>${ref2Display}</span></div>
-        <div class="row"><span class="lbl">Info</span><span style="font-style:italic">Predict</span></div>
+        <div class="row"><span class="lbl">Info</span><span>${predictLogo}</span></div>
       </div>
       <div class="middle-right">
         <div class="colis-poids">
