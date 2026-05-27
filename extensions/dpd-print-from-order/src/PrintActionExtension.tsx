@@ -205,7 +205,7 @@ function Extension() {
             {/* Alerte produits non assignés */}
             {unassignedItems.length > 0 && (
               <s-banner tone="warning">
-                ⚠️ {unassignedItems.length} produit(s) non assigné(s) à un colis
+                {unassignedItems.length} produit(s) non assigné(s) à un colis
               </s-banner>
             )}
 

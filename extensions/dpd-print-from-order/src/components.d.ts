@@ -29,7 +29,7 @@ declare namespace preact.JSX {
     };
     's-checkbox': {
       key?: string;
-      label?: string;  // ← ajoute ça
+      label?: string;
       checked?: boolean;
       onChange?: (e: any) => void;
       disabled?: boolean;
