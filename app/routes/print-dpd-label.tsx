@@ -159,7 +159,9 @@ async function soapRequest(config: Config, p: SoapParams): Promise<string> {
   </soap:Body>
 </soap:Envelope>`;
   const response = await fetch(WS_URL, { method: "POST", headers: { "Content-Type": "text/xml; charset=utf-8", "SOAPAction": "http://www.cargonet.software/CreateShipmentWithLabelsBc", ...(proxyToken ? { "X-Proxy-Token": proxyToken } : {}) }, body });
-  return response.text();
+  const xml = await response.text();
+  console.log("[DPD] XML response:", xml.slice(0, 2000));
+  return xml;
 }
 
 async function parseShipmentResponse(xml: string): Promise<{ trackingNumber: string | null; barCode: string | null; error: string | null }> {
@@ -397,8 +399,8 @@ ${labelsWithData.map(({
         <div class="middle-left-refs">
           <div class="row"><span class="lbl">Contact</span><span>Tel ${destPhone || "-"}</span></div>
           <div class="row"><span class="lbl">Ref 1</span><span>${ref1Display}</span></div>
-          <div class="row"><span class="lbl">Ref 2</span><span>${ref2Display}</span></div>
           ${skuDisplay ? `<div class="row"><span class="lbl">SKUs</span><span>${skuDisplay}</span></div>` : ""}
+          <div class="row"><span class="lbl">Ref 2</span><span>${ref2Display}</span></div>
         </div>
         <!-- Zone 8 : barcode DPD (barCode28) + logo Predict -->
         <div class="middle-left-bottom">
