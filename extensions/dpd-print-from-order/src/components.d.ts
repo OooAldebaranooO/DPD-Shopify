@@ -33,7 +33,7 @@ declare namespace preact.JSX {
       tone?: 'default' | 'critical';
       variant?: 'primary' | 'secondary' | 'plain' | 'monochromePlain';
       disabled?: boolean;
-      onPress?: () => void;
+      onClick?: () => void;  // ← était onPress
       children?: any;
     };
     's-pressable': {

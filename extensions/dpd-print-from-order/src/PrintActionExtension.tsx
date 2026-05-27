@@ -1,3 +1,4 @@
+import '@shopify/ui-extensions/preact';
 import { render } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 
@@ -217,7 +218,7 @@ function Extension() {
                   <s-stack direction="inline" gap="base">
                     <s-text><strong>📦 Colis {colisIndex + 1}/{colis.length}</strong></s-text>
                     {colis.length > 1 && (
-                      <s-button tone="critical" variant="plain" onPress={() => removeColis(c.id)}>
+                      <s-button tone="critical" variant="plain" onClick={() => removeColis(c.id)}>
                         Supprimer
                       </s-button>
                     )}
@@ -238,7 +239,7 @@ function Extension() {
             ))}
 
             {/* Bouton ajouter colis */}
-            <s-button onPress={addColis}>+ Ajouter un colis</s-button>
+            <s-button onClick={addColis}>+ Ajouter un colis</s-button>
 
           </s-stack>
         )}
