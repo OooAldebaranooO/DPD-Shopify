@@ -400,7 +400,7 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     .middle-left-bottom { border-top: 1px solid #ddd; padding-top: 1mm; display: flex; justify-content: space-between; align-items: center; }
     .row { margin-bottom: 0.8mm; line-height: 1.3; }
     .row .lbl { font-size: 5pt; color: #444; display: block; }
-    .ref-barcode img { height: 7mm; max-width: 65%; }
+    .ref-barcode img { height: 7mm; max-width: 95%; }
     .middle-right { display: grid; grid-template-columns: auto auto; }
     .colis-poids { display: flex; flex-direction: column; border-right: 1px solid #000; }
     .colis-badge { padding: 1mm 2.5mm; border-bottom: 1px solid #000; flex: 1; }
