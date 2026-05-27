@@ -444,7 +444,7 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
 
     // Service code selon doc DPD : ≤1kg = XD-B2C, >1kg = D-B2C (Predict)
     const serviceCode    = parseFloat(label.weight) <= 1 ? 'XD-B2C' : 'D-B2C';
-    const predictLogo = `<img src="https://dpd-shopify-oken.vercel.app/predict-logo.png" style="height:8px;vertical-align:middle" alt="Predict"/> Predict`;
+    const predictLogo = `<img src="https://dpd-shopify-oken.vercel.app/dpd-predict-livraison.png" style="height:10px;vertical-align:middle" alt="Predict"/>`;
 
     // Agence DPD depuis la config (vraie valeur)
     const agenceDisplay  = agencyCode;
