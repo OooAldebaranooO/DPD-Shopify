@@ -16,9 +16,14 @@ interface LineItem {
   weight: number;
 }
 
+interface ColisItem {
+  itemId: string;
+  qty:    number;
+}
+
 interface Colis {
-  id:      string;
-  itemIds: string[];
+  id:    string;
+  items: ColisItem[];
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -101,7 +106,11 @@ function Extension() {
         setOrderName(order.name);
         setAddr(order.shippingAddress);
         setLines(loadedLines);
-        setColis([{ id: 'colis-1', itemIds: loadedLines.map((l: LineItem) => l.id) }]);
+        // Par défaut : 1 colis avec toute la quantité de chaque produit
+        setColis([{
+          id: 'colis-1',
+          items: loadedLines.map((l: LineItem) => ({ itemId: l.id, qty: l.qty })),
+        }]);
         setIsLoading(false);
       } catch (e) {
         console.error(e);
@@ -120,9 +129,15 @@ function Extension() {
     const destCompany = addr?.company || "";
 
     const colisItems = colis.map(c => {
-      const colisLines = lines.filter(l => c.itemIds.includes(l.id));
-      const totalWeight = colisLines.reduce((acc, l) => acc + l.weight * l.qty, 0);
-      const skus = colisLines.map(l => l.sku).filter(Boolean).join("+");
+      const totalWeight = c.items.reduce((acc, ci) => {
+        const line = lines.find(l => l.id === ci.itemId);
+        return acc + (line ? line.weight * ci.qty : 0);
+      }, 0);
+      const skus = c.items
+        .filter(ci => ci.qty > 0)
+        .map(ci => lines.find(l => l.id === ci.itemId)?.sku || "")
+        .filter(Boolean)
+        .join("+");
       return { weight: Math.max(0.01, totalWeight), sku: skus };
     });
 
@@ -149,28 +164,44 @@ function Extension() {
 
   // ── Actions ──
   function addColis() {
-    setColis(prev => [...prev, { id: `colis-${Date.now()}`, itemIds: [] }]);
+    setColis(prev => [...prev, {
+      id: `colis-${Date.now()}`,
+      items: lines.map(l => ({ itemId: l.id, qty: 0 })),
+    }]);
   }
 
   function removeColis(colisId: string) {
     setColis(prev => prev.filter(c => c.id !== colisId));
   }
 
-  function toggleItem(colisId: string, itemId: string) {
+  function setItemQty(colisId: string, itemId: string, newQty: number) {
+    const line = lines.find(l => l.id === itemId);
+    if (!line) return;
+    const clamped = Math.max(0, Math.min(newQty, line.qty));
     setColis(prev => prev.map(c => {
       if (c.id !== colisId) return c;
-      const has = c.itemIds.includes(itemId);
-      return { ...c, itemIds: has ? c.itemIds.filter(id => id !== itemId) : [...c.itemIds, itemId] };
+      const existing = c.items.find(ci => ci.itemId === itemId);
+      if (existing) {
+        return { ...c, items: c.items.map(ci => ci.itemId === itemId ? { ...ci, qty: clamped } : ci) };
+      }
+      return { ...c, items: [...c.items, { itemId, qty: clamped }] };
     }));
   }
 
-  const unassignedItems = lines.filter(l => !colis.some(c => c.itemIds.includes(l.id)));
+  // ── Calcul des qtés assignées par produit ──
+  function assignedQty(itemId: string): number {
+    return colis.reduce((acc, c) => {
+      const ci = c.items.find(i => i.itemId === itemId);
+      return acc + (ci?.qty || 0);
+    }, 0);
+  }
+
+  const unassignedLines = lines.filter(l => assignedQty(l.id) < l.qty);
 
   return (
     <s-admin-print-action src={printUrl || undefined}>
       <s-stack direction="block" gap="base">
 
-        {/* Header */}
         <s-stack direction="block" gap="none">
           <s-heading>Impression DPD</s-heading>
           <s-text tone="subdued">Impression d'étiquettes LiveDeco</s-text>
@@ -203,9 +234,12 @@ function Extension() {
             </s-stack>
 
             {/* Alerte produits non assignés */}
-            {unassignedItems.length > 0 && (
+            {unassignedLines.length > 0 && (
               <s-banner tone="warning">
-                {unassignedItems.length} produit(s) non assigné(s) à un colis
+                {unassignedLines.map(l => {
+                  const missing = l.qty - assignedQty(l.id);
+                  return `⚠️ ${l.sku || l.title} : ${missing} unité(s) non assignée(s)`;
+                }).join(" | ")}
               </s-banner>
             )}
 
@@ -224,14 +258,26 @@ function Extension() {
                     )}
                   </s-stack>
 
-                  {/* Produits */}
-                  {lines.map(line => (
-                    <s-checkbox
-                      label={`${line.sku ? line.sku + ' — ' : ''}${line.title} (x${line.qty})`}
-                      checked={c.itemIds.includes(line.id)}
-                      onChange={() => toggleItem(c.id, line.id)}
-                    />
-                  ))}
+                  {/* Produits avec champ quantité */}
+                  {lines.map(line => {
+                    const ci      = c.items.find(i => i.itemId === line.id);
+                    const current = ci?.qty ?? 0;
+                    const label   = `${line.sku ? line.sku + ' — ' : ''}${line.title} (max ${line.qty})`;
+                    return (
+                      <s-stack direction="inline" gap="base">
+                        <s-text tone="subdued">{label}</s-text>
+                        <s-button
+                          variant="plain"
+                          onClick={() => setItemQty(c.id, line.id, current - 1)}
+                        >−</s-button>
+                        <s-text><strong>{String(current)}</strong></s-text>
+                        <s-button
+                          variant="plain"
+                          onClick={() => setItemQty(c.id, line.id, current + 1)}
+                        >+</s-button>
+                      </s-stack>
+                    );
+                  })}
 
                 </s-stack>
               </s-box>
