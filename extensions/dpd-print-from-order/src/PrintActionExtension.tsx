@@ -135,7 +135,12 @@ function Extension() {
       }, 0);
       const skus = c.items
         .filter(ci => ci.qty > 0)
-        .map(ci => lines.find(l => l.id === ci.itemId)?.sku || "")
+        .map(ci => {
+          const line = lines.find(l => l.id === ci.itemId);
+          if (!line) return "";
+          const sku = line.sku || line.title;
+          return ci.qty > 1 ? `${sku}(x${ci.qty})` : sku;
+        })
         .filter(Boolean)
         .join("+");
       return { weight: Math.max(0.01, totalWeight), sku: skus };
