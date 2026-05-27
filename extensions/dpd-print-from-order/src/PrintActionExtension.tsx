@@ -20,65 +20,6 @@ interface Colis {
   itemIds: string[];
 }
 
-// ── Styles inline (pas de CSS externe dispo) ─────────────────────────────────
-
-const styles = {
-  colisBox: {
-    border: '1px solid #e1e3e5',
-    borderRadius: '8px',
-    padding: '12px',
-    marginBottom: '8px',
-    background: '#f6f6f7',
-  } as preact.JSX.CSSProperties,
-  colisHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '8px',
-  } as preact.JSX.CSSProperties,
-  colisTitle: {
-    fontWeight: 700,
-    fontSize: '13px',
-  } as preact.JSX.CSSProperties,
-  removeBtn: {
-    background: 'none',
-    border: '1px solid #c9cccf',
-    borderRadius: '4px',
-    padding: '2px 8px',
-    cursor: 'pointer',
-    fontSize: '12px',
-    color: '#d72c0d',
-  } as preact.JSX.CSSProperties,
-  checkboxRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    padding: '4px 0',
-    fontSize: '12px',
-    cursor: 'pointer',
-  } as preact.JSX.CSSProperties,
-  addBtn: {
-    width: '100%',
-    padding: '8px',
-    background: '#008060',
-    color: '#fff',
-    border: 'none',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    fontSize: '13px',
-    fontWeight: 600,
-    marginTop: '8px',
-  } as preact.JSX.CSSProperties,
-  warningBox: {
-    background: '#fff4e4',
-    border: '1px solid #ffc453',
-    borderRadius: '6px',
-    padding: '8px 12px',
-    fontSize: '12px',
-    marginBottom: '8px',
-  } as preact.JSX.CSSProperties,
-};
-
 // ── Component ────────────────────────────────────────────────────────────────
 
 function Extension() {
@@ -159,7 +100,6 @@ function Extension() {
         setOrderName(order.name);
         setAddr(order.shippingAddress);
         setLines(loadedLines);
-        // Par défaut : 1 colis avec tous les produits
         setColis([{ id: 'colis-1', itemIds: loadedLines.map((l: LineItem) => l.id) }]);
         setIsLoading(false);
       } catch (e) {
@@ -208,8 +148,7 @@ function Extension() {
 
   // ── Actions ──
   function addColis() {
-    const newId = `colis-${Date.now()}`;
-    setColis(prev => [...prev, { id: newId, itemIds: [] }]);
+    setColis(prev => [...prev, { id: `colis-${Date.now()}`, itemIds: [] }]);
   }
 
   function removeColis(colisId: string) {
@@ -271,37 +210,35 @@ function Extension() {
 
             {/* Liste des colis */}
             {colis.map((c, colisIndex) => (
-              <div key={c.id} style={styles.colisBox}>
-                <div style={styles.colisHeader}>
-                  <span style={styles.colisTitle}>📦 Colis {colisIndex + 1}/{colis.length}</span>
-                  {colis.length > 1 && (
-                    <button style={styles.removeBtn} onClick={() => removeColis(c.id)}>
-                      🗑 Supprimer
-                    </button>
-                  )}
-                </div>
-                {lines.map(line => (
-                  <label key={line.id} style={styles.checkboxRow}>
-                    <input
-                      type="checkbox"
+              <s-box padding="base" background="surface-secondary">
+                <s-stack direction="block" gap="small">
+
+                  {/* Header colis */}
+                  <s-stack direction="inline" gap="base">
+                    <s-text><strong>📦 Colis {colisIndex + 1}/{colis.length}</strong></s-text>
+                    {colis.length > 1 && (
+                      <s-button tone="critical" variant="plain" onPress={() => removeColis(c.id)}>
+                        Supprimer
+                      </s-button>
+                    )}
+                  </s-stack>
+
+                  {/* Produits */}
+                  {lines.map(line => (
+                    <s-checkbox
                       checked={c.itemIds.includes(line.id)}
                       onChange={() => toggleItem(c.id, line.id)}
-                    />
-                    <span>
-                      {line.sku ? <strong>{line.sku}</strong> : null}
-                      {line.sku ? " — " : ""}
-                      {line.title}
-                      <span style={{ color: '#6d7175' }}> (x{line.qty})</span>
-                    </span>
-                  </label>
-                ))}
-              </div>
+                    >
+                      {line.sku ? `${line.sku} — ` : ""}{line.title} (x{line.qty})
+                    </s-checkbox>
+                  ))}
+
+                </s-stack>
+              </s-box>
             ))}
 
             {/* Bouton ajouter colis */}
-            <button style={styles.addBtn} onClick={addColis}>
-              + Ajouter un colis
-            </button>
+            <s-button onPress={addColis}>+ Ajouter un colis</s-button>
 
           </s-stack>
         )}
