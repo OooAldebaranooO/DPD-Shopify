@@ -117,7 +117,6 @@ async function soapRequest(config: Config, p: SoapParams): Promise<string> {
   const WS_URL = process.env.PROXY_URL || "https://e-station.cargonet.software/dpd-eprintwebservice/eprintwebservice.asmx";
   const proxyToken = process.env.PROXY_SECRET || "";
   const isMobile = isMobilePhone(p.destPhone);
-  console.log("[DPD] destPhone:", JSON.stringify(p.destPhone), "isMobile:", isMobile);
   const predictService = isMobile
     ? `<services><contact><type>Predict</type><sms>${escapeXml(p.destPhone)}</sms></contact></services>`
     : "";
@@ -159,9 +158,7 @@ async function soapRequest(config: Config, p: SoapParams): Promise<string> {
   </soap:Body>
 </soap:Envelope>`;
   const response = await fetch(WS_URL, { method: "POST", headers: { "Content-Type": "text/xml; charset=utf-8", "SOAPAction": "http://www.cargonet.software/CreateShipmentWithLabelsBc", ...(proxyToken ? { "X-Proxy-Token": proxyToken } : {}) }, body });
-  const xml = await response.text();
-  console.log("[DPD] XML response:", xml.slice(0, 2000));
-  return xml;
+  return response.text();
 }
 
 async function parseShipmentResponse(xml: string): Promise<{ trackingNumber: string | null; barCode: string | null; error: string | null }> {
@@ -169,7 +166,10 @@ async function parseShipmentResponse(xml: string): Promise<{ trackingNumber: str
   if (errMatch) return { trackingNumber: null, barCode: null, error: errMatch[1] };
   const trackMatch = xml.match(/<BarcodeId>([\s\S]*?)<\/BarcodeId>/i) || xml.match(/<parcelnumber>([\s\S]*?)<\/parcelnumber>/i);
   const barMatch   = xml.match(/<BarCode>([\s\S]*?)<\/BarCode>/i);
-  return { trackingNumber: trackMatch?.[1]?.trim() || null, barCode: barMatch?.[1]?.trim() || null, error: null };
+  // Normalise le BarCode : retire le % initial, ajoute X clé de contrôle en fin
+  const rawBar = barMatch?.[1]?.trim() || null;
+  const barCode = rawBar ? rawBar.replace(/^%/, "") + "X" : null;
+  return { trackingNumber: trackMatch?.[1]?.trim() || null, barCode, error: null };
 }
 
 async function callDpdEprint(config: Config, order: OrderParams): Promise<LabelData[]> {
@@ -285,8 +285,9 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     ]);
 
     // Zone 13 — légende sous le grand barcode (formatée si 28 chars réels, brut si mock)
+    // Format : CP7 AGENCY4 NUMEXP10 SERVICE3 ISO3 X  (28 chars sans le %)
     const barcode13Legend = label.barCode && barCode28.length >= 28
-      ? `${barCode28.slice(0,1)} ${barCode28.slice(1,8)} ${barCode28.slice(8,12)} ${barCode28.slice(12,22)} ${barCode28.slice(22,25)} ${barCode28.slice(25,28)}`
+      ? `${barCode28.slice(0,7)} ${barCode28.slice(7,11)} ${barCode28.slice(11,21)} ${barCode28.slice(21,24)} ${barCode28.slice(24,27)} ${barCode28.slice(27)}`
       : barCode28;
 
     return { ...label, trackingNumber, barCode28, serviceCode, serviceNum, ref1Display, ref2Display, skuDisplay, barcode128Url, refBarcodeUrl, aztecUrl, barcode13Legend };
@@ -338,8 +339,9 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     .tracking { display: grid; grid-template-columns: 1fr auto; padding: 1mm 2mm; border-bottom: 1px solid #000; align-items: center; }
     .track-label { font-size: 4.5pt; color: #444; }
     .tracking-number { font-size: 16pt; font-weight: 700; letter-spacing: 1px; line-height: 1; }
+    .tracking-number .depot-code { font-size: 22pt; font-weight: 900; }
     .service-block { text-align: right; }
-    .service-code { font-size: 9pt; font-weight: 700; }
+    .service-code { font-size: 14pt; font-weight: 700; }
     .service-lbl { font-size: 4.5pt; color: #444; }
     .transport { border-bottom: 1px solid #000; }
     .transport-row1 { display: grid; grid-template-columns: auto 1fr auto; align-items: center; padding: 0.5mm 2mm; gap: 2mm; min-height: 7mm; }
@@ -399,8 +401,8 @@ ${labelsWithData.map(({
         <div class="middle-left-refs">
           <div class="row"><span class="lbl">Contact</span><span>Tel ${destPhone || "-"}</span></div>
           <div class="row"><span class="lbl">Ref 1</span><span>${ref1Display}</span></div>
-          ${skuDisplay ? `<div class="row"><span class="lbl">SKUs</span><span>${skuDisplay}</span></div>` : ""}
           <div class="row"><span class="lbl">Ref 2</span><span>${ref2Display}</span></div>
+          ${skuDisplay ? `<div class="row"><span class="lbl">SKUs</span><span>${skuDisplay}</span></div>` : ""}
         </div>
         <!-- Zone 8 : barcode DPD (barCode28) + logo Predict -->
         <div class="middle-left-bottom">
@@ -422,7 +424,7 @@ ${labelsWithData.map(({
     <div class="tracking">
       <div>
         <div class="track-label">Track</div>
-        <div class="tracking-number">${trackingNumber || ""}</div>
+        <div class="tracking-number">${trackingNumber ? `<span class="depot-code">${trackingNumber.slice(0,4)}</span>${trackingNumber.slice(4)}` : ""}</div>
       </div>
       <div class="service-block">
         <div class="service-code">${serviceCode}</div>
