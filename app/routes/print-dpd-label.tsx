@@ -1,6 +1,10 @@
 import QRCode from 'qrcode';
 import bwipjs from 'bwip-js';
 import { kv } from '@vercel/kv';
+import * as pdfParseModule from 'pdf-parse';
+
+// pdf-parse peut exporter de différentes façons selon la version
+const pdfParse = (pdfParseModule as any).default ?? pdfParseModule;
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -50,8 +54,8 @@ interface LabelData {
   sku:            string;
   title:          string;
   labelPdf:       string | null;
-  trackingNumber: string | null; // BarcodeId (numéro d'expédition)
-  barCode:        string | null; // BarCode complet 28 chars pour le scan
+  trackingNumber: string | null;
+  barCode:        string | null;
   fromApi:        boolean;
 }
 
@@ -131,23 +135,13 @@ export async function loader({ request }: { request: Request }) {
           const total = order.items.length;
           order.items.forEach((item, i) => {
             labels.push({
-              orderName:      order.orderName,
-              index:          i + 1,
-              total,
-              destName:       order.destName,
-              destCompany:    order.destCompany,
-              destAddress:    order.destAddress,
-              destAddress2:   order.destAddress2,
-              destZip:        order.destZip,
-              destCity:       order.destCity,
-              destPhone:      order.destPhone,
-              weight:         Math.max(0.01, item.weight).toFixed(2),
-              sku:            item.sku,
-              title:          item.title,
-              labelPdf:       null,
-              trackingNumber: null,
-              barCode:        null,
-              fromApi:        false,
+              orderName: order.orderName, index: i + 1, total,
+              destName: order.destName, destCompany: order.destCompany,
+              destAddress: order.destAddress, destAddress2: order.destAddress2,
+              destZip: order.destZip, destCity: order.destCity, destPhone: order.destPhone,
+              weight: Math.max(0.01, item.weight).toFixed(2),
+              sku: item.sku, title: item.title,
+              labelPdf: null, trackingNumber: null, barCode: null, fromApi: false,
             });
           });
         }
@@ -202,117 +196,6 @@ export async function loader({ request }: { request: Request }) {
       "Content-Security-Policy": "frame-ancestors *",
     },
   });
-}
-
-// ── DPD EPrint SOAP — Mode individuel ────────────────────────────────────────
-
-async function callDpdEprint(config: Config, order: OrderParams): Promise<LabelData[]> {
-  const shippingDate = new Date().toLocaleDateString("fr-FR").split("/").join(".");
-  const weightsList  = String(order.weights || "1").split(",").map(w => parseFloat(w) || 0);
-  const skusList     = String(order.skusParam   || "").split("|").map(s => decodeURIComponent(s));
-  const titlesList   = String(order.titlesParam || "").split("|").map(s => decodeURIComponent(s));
-  const ref2Base     = (config.senderName2 || config.senderName || "EXPEDITEUR")!.toUpperCase().replace(/\s/g, "_");
-  const labels: LabelData[] = [];
-
-  for (let i = 1; i <= order.count; i++) {
-    const itemWeight = Math.max(0.01, weightsList[i - 1] ?? weightsList[0] ?? 1).toFixed(2);
-    const itemSku    = skusList[i - 1]   ?? "";
-    const itemTitle  = titlesList[i - 1] ?? "";
-
-    const xml = await soapRequest(config, {
-      destName: order.destName, destCompany: order.destCompany,
-      destAddress: order.destAddress, destAddress2: order.destAddress2,
-      destZip: order.destZip, destCity: order.destCity, destPhone: order.destPhone,
-      orderName: order.orderName,
-      ref1: itemSku || order.orderName,
-      ref2: `${ref2Base}_${order.orderName.replace("#", "")}`,
-      weight: itemWeight, shippingDate,
-    });
-
-    const { trackingNumber, barCode, error } = parseShipmentResponse(xml);
-    if (error) throw new Error(error);
-
-    labels.push({
-      orderName: order.orderName, index: i, total: order.count,
-      destName: order.destName, destCompany: order.destCompany,
-      destAddress: order.destAddress, destAddress2: order.destAddress2,
-      destZip: order.destZip, destCity: order.destCity, destPhone: order.destPhone,
-      weight: itemWeight, sku: itemSku, title: itemTitle,
-      labelPdf: null, trackingNumber, barCode, fromApi: true,
-    });
-  }
-
-  return labels;
-}
-
-// ── DPD EPrint SOAP — Mode bulk parallèle ────────────────────────────────────
-
-async function callDpdEprintBulk(config: Config, labels: LabelData[]): Promise<LabelData[]> {
-  const shippingDate = new Date().toLocaleDateString("fr-FR").split("/").join(".");
-  const ref2Base     = (config.senderName2 || config.senderName || "EXPEDITEUR")!.toUpperCase().replace(/\s/g, "_");
-
-  return Promise.all(labels.map(async (label) => {
-    try {
-      const xml = await soapRequest(config, {
-        destName: label.destName, destCompany: label.destCompany,
-        destAddress: label.destAddress, destAddress2: label.destAddress2,
-        destZip: label.destZip, destCity: label.destCity, destPhone: label.destPhone,
-        orderName: label.orderName,
-        ref1: label.sku || label.orderName,
-        ref2: `${ref2Base}_${label.orderName.replace("#", "")}`,
-        weight: label.weight, shippingDate,
-      });
-
-      const { trackingNumber, barCode, error } = parseShipmentResponse(xml);
-
-      if (error) {
-        console.error("Erreur DPD pour", label.orderName, ":", error);
-        return label;
-      }
-
-      return { ...label, labelPdf: null, trackingNumber, barCode, fromApi: true };
-    } catch (e) {
-      console.error("Erreur SOAP pour", label.orderName, e);
-      return label;
-    }
-  }));
-}
-
-// ── Parse réponse SOAP DPD ────────────────────────────────────────────────────
-
-function parseShipmentResponse(xml: string): {
-  trackingNumber: string | null;
-  barCode:        string | null;
-  error:          string | null;
-} {
-  const errMatch   = xml.match(/<ErrorMessage>([\s\S]*?)<\/ErrorMessage>/i);
-  if (errMatch) return { trackingNumber: null, barCode: null, error: errMatch[1] };
-
-  // BarcodeId = numéro d'expédition (affiché en gros sur l'étiquette)
-  const trackMatch = xml.match(/<BarcodeId>([\s\S]*?)<\/BarcodeId>/i) || xml.match(/<parcelnumber>([\s\S]*?)<\/parcelnumber>/i);
-
-  // BarCode = barcode complet 28 chars (pour le scan et le Code 128)
-  const barMatch   = xml.match(/<BarCode>([\s\S]*?)<\/BarCode>/i);
-
-  const labelMatch = xml.match(/<label>([\s\S]*?)<\/label>/);
-    if (labelMatch?.[1]) {
-      try {
-        const pdfBuffer = Buffer.from(labelMatch[1].trim(), 'base64');
-        const pdfParse = (await import('pdf-parse')).default;
-        const data = await pdfParse(pdfBuffer);
-        console.log("===PDF TEXT===", JSON.stringify(data.text));
-      } catch(e) {
-        console.error("PDF parse error:", e);
-      }
-    }
-
-  console.log("DPD réponse XML (300 chars):", xml.slice(0, 300));
-
-  return {
-    trackingNumber: trackMatch?.[1]?.trim() || null,
-    barCode:        barMatch?.[1]?.trim()   || null,
-    error:          null,
-  };
 }
 
 // ── SOAP helper ───────────────────────────────────────────────────────────────
@@ -391,6 +274,108 @@ async function soapRequest(config: Config, p: SoapParams): Promise<string> {
   return response.text();
 }
 
+// ── Parse réponse SOAP DPD ────────────────────────────────────────────────────
+
+async function parseShipmentResponse(xml: string): Promise<{
+  trackingNumber: string | null;
+  barCode:        string | null;
+  error:          string | null;
+}> {
+  const errMatch = xml.match(/<ErrorMessage>([\s\S]*?)<\/ErrorMessage>/i);
+  if (errMatch) return { trackingNumber: null, barCode: null, error: errMatch[1] };
+
+  const trackMatch = xml.match(/<BarcodeId>([\s\S]*?)<\/BarcodeId>/i)
+                  || xml.match(/<parcelnumber>([\s\S]*?)<\/parcelnumber>/i);
+  const barMatch   = xml.match(/<BarCode>([\s\S]*?)<\/BarCode>/i);
+
+  // Log PDF text pour debug routing
+  const labelMatch = xml.match(/<label>([\s\S]*?)<\/label>/);
+  if (labelMatch?.[1]) {
+    try {
+      const pdfBuffer = Buffer.from(labelMatch[1].trim(), 'base64');
+      const data = await pdfParse(pdfBuffer);
+      console.log("===PDF TEXT===", JSON.stringify(data.text));
+    } catch(e) {
+      console.error("PDF parse error:", e);
+    }
+  }
+
+  return {
+    trackingNumber: trackMatch?.[1]?.trim() || null,
+    barCode:        barMatch?.[1]?.trim()   || null,
+    error:          null,
+  };
+}
+
+// ── DPD EPrint SOAP — Mode individuel ────────────────────────────────────────
+
+async function callDpdEprint(config: Config, order: OrderParams): Promise<LabelData[]> {
+  const shippingDate = new Date().toLocaleDateString("fr-FR").split("/").join(".");
+  const weightsList  = String(order.weights || "1").split(",").map(w => parseFloat(w) || 0);
+  const skusList     = String(order.skusParam   || "").split("|").map(s => decodeURIComponent(s));
+  const titlesList   = String(order.titlesParam || "").split("|").map(s => decodeURIComponent(s));
+  const ref2Base     = (config.senderName2 || config.senderName || "EXPEDITEUR")!.toUpperCase().replace(/\s/g, "_");
+  const labels: LabelData[] = [];
+
+  for (let i = 1; i <= order.count; i++) {
+    const itemWeight = Math.max(0.01, weightsList[i - 1] ?? weightsList[0] ?? 1).toFixed(2);
+    const itemSku    = skusList[i - 1]   ?? "";
+    const itemTitle  = titlesList[i - 1] ?? "";
+
+    const xml = await soapRequest(config, {
+      destName: order.destName, destCompany: order.destCompany,
+      destAddress: order.destAddress, destAddress2: order.destAddress2,
+      destZip: order.destZip, destCity: order.destCity, destPhone: order.destPhone,
+      orderName: order.orderName,
+      ref1: itemSku || order.orderName,
+      ref2: `${ref2Base}_${order.orderName.replace("#", "")}`,
+      weight: itemWeight, shippingDate,
+    });
+
+    const { trackingNumber, barCode, error } = await parseShipmentResponse(xml);
+    if (error) throw new Error(error);
+
+    labels.push({
+      orderName: order.orderName, index: i, total: order.count,
+      destName: order.destName, destCompany: order.destCompany,
+      destAddress: order.destAddress, destAddress2: order.destAddress2,
+      destZip: order.destZip, destCity: order.destCity, destPhone: order.destPhone,
+      weight: itemWeight, sku: itemSku, title: itemTitle,
+      labelPdf: null, trackingNumber, barCode, fromApi: true,
+    });
+  }
+
+  return labels;
+}
+
+// ── DPD EPrint SOAP — Mode bulk parallèle ────────────────────────────────────
+
+async function callDpdEprintBulk(config: Config, labels: LabelData[]): Promise<LabelData[]> {
+  const shippingDate = new Date().toLocaleDateString("fr-FR").split("/").join(".");
+  const ref2Base     = (config.senderName2 || config.senderName || "EXPEDITEUR")!.toUpperCase().replace(/\s/g, "_");
+
+  return Promise.all(labels.map(async (label) => {
+    try {
+      const xml = await soapRequest(config, {
+        destName: label.destName, destCompany: label.destCompany,
+        destAddress: label.destAddress, destAddress2: label.destAddress2,
+        destZip: label.destZip, destCity: label.destCity, destPhone: label.destPhone,
+        orderName: label.orderName,
+        ref1: label.sku || label.orderName,
+        ref2: `${ref2Base}_${label.orderName.replace("#", "")}`,
+        weight: label.weight, shippingDate,
+      });
+
+      const { trackingNumber, barCode, error } = await parseShipmentResponse(xml);
+      if (error) { console.error("Erreur DPD pour", label.orderName, ":", error); return label; }
+      return { ...label, labelPdf: null, trackingNumber, barCode, fromApi: true };
+    } catch (e) {
+      console.error("Erreur SOAP pour", label.orderName, e);
+      return label;
+    }
+  }));
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function escapeXml(str: string): string {
@@ -445,35 +430,21 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
   const agencyCode = config.agencyCode || "038";
 
   const labelsWithData = await Promise.all(labels.map(async (label) => {
-    // En prod : on utilise le vrai BarCode (28 chars) pour le scan
-    // En mock : on génère un numéro fictif
-    const barcodeValue   = label.barCode || label.trackingNumber
+    const barcodeValue  = label.barCode || label.trackingNumber
       || `1038${Math.floor(Math.random()*9000+1000)}${Math.floor(Math.random()*9000+1000)}${Math.floor(Math.random()*90+10)}C`;
-
-    // BarcodeId = numéro d'expédition affiché en gros
-    const displayNumber  = label.trackingNumber || barcodeValue;
-
-    // Service code selon doc DPD : ≤1kg = XD-B2C, >1kg = D-B2C (Predict)
-    const serviceCode    = parseFloat(label.weight) <= 1 ? 'XD-B2C' : 'D-B2C';
-    const predictLogo = `<img src="https://dpd-shopify-oken.vercel.app/dpd-predict-livraison.png" style="height:10px;vertical-align:middle" alt="Predict"/>`;
-
-    // Agence DPD depuis la config (vraie valeur)
-    const agenceDisplay  = agencyCode;
-
-    const ref1Display    = label.sku || label.orderName.replace("#", "");
-    const ref2Display    = `${(config.senderName2 || config.senderName || "EXPEDITEUR")!.toUpperCase().replace(/\s/g,"_")}_${label.orderName.replace("#","")}`;
+    const displayNumber = label.trackingNumber || barcodeValue;
+    const serviceCode   = parseFloat(label.weight) <= 1 ? 'XD-B2C' : 'D-B2C';
+    const predictLogo   = `<img src="https://dpd-shopify-oken.vercel.app/dpd-predict-livraison.png" style="height:10px;vertical-align:middle" alt="Predict"/>`;
+    const agenceDisplay = agencyCode;
+    const ref1Display   = label.sku || label.orderName.replace("#", "");
+    const ref2Display   = `${(config.senderName2 || config.senderName || "EXPEDITEUR")!.toUpperCase().replace(/\s/g,"_")}_${label.orderName.replace("#","")}`;
 
     const [barcodeDataUrl, qrSvg] = await Promise.all([
       generateBarcodeBase64(barcodeValue),
       generateQrSvg(barcodeValue),
     ]);
 
-    return {
-      ...label, barcodeValue, displayNumber,
-      serviceCode, agenceDisplay, predictLogo,
-      ref1Display, ref2Display,
-      barcodeDataUrl, qrSvg,
-    };
+    return { ...label, barcodeValue, displayNumber, serviceCode, agenceDisplay, predictLogo, ref1Display, ref2Display, barcodeDataUrl, qrSvg };
   }));
 
   return `<!DOCTYPE html>
@@ -563,7 +534,7 @@ ${labelsWithData.map(({
         <div class="row"><span class="lbl">Contact</span><span>Tel ${destPhone || "-"}</span></div>
         <div class="row"><span class="lbl">Ref 1</span><span>${ref1Display}</span></div>
         <div class="row"><span class="lbl">Ref 2</span><span>${ref2Display}</span></div>
-        <div class="row" style="text-align: end;"><span class="lbl"></span><span>${predictLogo}</span></div>
+        <div class="row" style="text-align:right"><span>${predictLogo}</span></div>
       </div>
       <div class="middle-right">
         <div class="colis-poids">
