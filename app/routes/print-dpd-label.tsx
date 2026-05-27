@@ -143,7 +143,7 @@ async function soapRequest(config: Config, p: SoapParams): Promise<string> {
           <city>${escapeXml(config.senderCity ?? "")}</city>
           <phoneNumber>${escapeXml(config.senderPhone ?? "")}</phoneNumber>
         </shipperaddress>
-        <services><contact><type>Predict</type><value>${escapeXml(p.destPhone)}</value></contact></services>
+        ${isMobilePhone(p.destPhone) ? `<services><contact><type>Predict</type><value>${escapeXml(p.destPhone)}</value></contact></services>` : ``}
         <weight>${p.weight}</weight>
         <shippingdate>${p.shippingDate}</shippingdate>
         <referencenumber>${escapeXml(p.ref1.slice(0, 35))}</referencenumber>
@@ -192,6 +192,13 @@ async function callDpdEprint(config: Config, order: OrderParams): Promise<LabelD
   return labels;
 }
 
+
+// Vérifie si le numéro est un mobile FR (06/07) ou international (+336/+337)
+function isMobilePhone(phone: string): boolean {
+  if (!phone) return false;
+  const clean = phone.replace(/[\s.\-]/g, "");
+  return /^(06|07|\+336|\+337|0033[67])/.test(clean);
+}
 
 function escapeXml(str: string): string {
   return String(str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
@@ -385,8 +392,8 @@ ${labelsWithData.map(({
         <div class="middle-left-refs">
           <div class="row"><span class="lbl">Contact</span><span>Tel ${destPhone || "-"}</span></div>
           <div class="row"><span class="lbl">Ref 1</span><span>${ref1Display}</span></div>
-          ${skuDisplay ? `<div class="row"><span class="lbl">SKUs</span><span>${skuDisplay}</span></div>` : ""}
           <div class="row"><span class="lbl">Ref 2</span><span>${ref2Display}</span></div>
+          ${skuDisplay ? `<div class="row"><span class="lbl">SKUs</span><span>${skuDisplay}</span></div>` : ""}
         </div>
         <!-- Zone 8 : barcode DPD (barCode28) + logo Predict -->
         <div class="middle-left-bottom">
