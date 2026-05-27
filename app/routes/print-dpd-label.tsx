@@ -303,12 +303,14 @@ async function parseShipmentResponse(xml: string): Promise<{
                   || xml.match(/<parcelnumber>([\s\S]*?)<\/parcelnumber>/i);
   const barMatch   = xml.match(/<BarCode>([\s\S]*?)<\/BarCode>/i);
 
-  // Log PDF text pour debug routing
+  // ── Logs debug ──
+  console.log("===XML TAGS===", xml.match(/<[a-zA-Z]+>/g)?.join(', '));
+  console.log("===XML FIRST 500===", xml.slice(0, 500));
+
   const labelMatch = xml.match(/<label>([\s\S]*?)<\/label>/);
   if (labelMatch?.[1]) {
     const buf = Buffer.from(labelMatch[1].trim(), 'base64');
     const str = buf.toString('latin1');
-    // Log les 2000 premiers chars du PDF décodé
     console.log("===PDF RAW===", JSON.stringify(str.slice(0, 2000)));
   }
 
