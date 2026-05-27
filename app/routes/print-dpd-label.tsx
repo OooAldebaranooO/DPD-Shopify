@@ -1,4 +1,3 @@
-import QRCode from 'qrcode';
 import bwipjs from 'bwip-js';
 import { kv } from '@vercel/kv';
 
@@ -29,7 +28,7 @@ interface LabelData {
   destZip: string; destCity: string; destPhone: string;
   weight: string; sku: string; title: string;
   labelPdf: string | null;
-  trackingNumber: string | null; // BarcodeId — zone 9 / Ref 1
+  trackingNumber: string | null; // BarcodeId DPD — zone 9 Track
   barCode: string | null;        // BarCode 28 chars — zone 12/13
   fromApi: boolean;
 }
@@ -172,13 +171,22 @@ async function callDpdEprint(config: Config, order: OrderParams): Promise<LabelD
   const weightsList  = String(order.weights || "1").split(",").map(w => parseFloat(w) || 0);
   const skusList     = String(order.skusParam || "").split("|").map(s => decodeURIComponent(s));
   const titlesList   = String(order.titlesParam || "").split("|").map(s => decodeURIComponent(s));
+  // 🔧 Ref2 = senderName2 si défini, sinon senderName — sans duplication
   const ref2Base     = (config.senderName2 || config.senderName || "EXPEDITEUR")!.toUpperCase().replace(/\s/g, "_");
   const labels: LabelData[] = [];
   for (let i = 1; i <= order.count; i++) {
     const itemWeight = Math.max(0.01, weightsList[i - 1] ?? weightsList[0] ?? 1).toFixed(2);
-    const itemSku    = skusList[i - 1]   ?? "";
+    const itemSku    = skusList[i - 1] ?? "";
     const itemTitle  = titlesList[i - 1] ?? "";
-    const xml = await soapRequest(config, { destName: order.destName, destCompany: order.destCompany, destAddress: order.destAddress, destAddress2: order.destAddress2, destZip: order.destZip, destCity: order.destCity, destPhone: order.destPhone, orderName: order.orderName, ref1: itemSku || order.orderName, ref2: `${ref2Base}_${order.orderName.replace("#", "")}`, weight: itemWeight, shippingDate });
+    const xml = await soapRequest(config, {
+      destName: order.destName, destCompany: order.destCompany,
+      destAddress: order.destAddress, destAddress2: order.destAddress2,
+      destZip: order.destZip, destCity: order.destCity, destPhone: order.destPhone,
+      orderName: order.orderName,
+      ref1: itemSku || order.orderName,
+      ref2: `${ref2Base}_${order.orderName.replace("#", "")}`,
+      weight: itemWeight, shippingDate,
+    });
     const { trackingNumber, barCode, error } = await parseShipmentResponse(xml);
     if (error) throw new Error(error);
     labels.push({ orderName: order.orderName, index: i, total: order.count, destName: order.destName, destCompany: order.destCompany, destAddress: order.destAddress, destAddress2: order.destAddress2, destZip: order.destZip, destCity: order.destCity, destPhone: order.destPhone, weight: itemWeight, sku: itemSku, title: itemTitle, labelPdf: null, trackingNumber, barCode, fromApi: true });
@@ -215,6 +223,7 @@ function buildMockLabels(count: number, orderName: string, destName: string, des
 // ── Génération codes ──────────────────────────────────────────────────────────
 
 async function generateBarcode128(value: string): Promise<string> {
+  if (!value) return "";
   try {
     const png = await bwipjs.toBuffer({ bcid: 'code128', text: value, scale: 3, height: 14, includetext: false });
     return `data:image/png;base64,${png.toString('base64')}`;
@@ -222,6 +231,7 @@ async function generateBarcode128(value: string): Promise<string> {
 }
 
 async function generateRefBarcode128(value: string): Promise<string> {
+  if (!value) return "";
   try {
     const png = await bwipjs.toBuffer({ bcid: 'code128', text: value, scale: 2, height: 8, includetext: false });
     return `data:image/png;base64,${png.toString('base64')}`;
@@ -229,6 +239,7 @@ async function generateRefBarcode128(value: string): Promise<string> {
 }
 
 async function generateAztecPng(value: string): Promise<string> {
+  if (!value) return "";
   try {
     const png = await bwipjs.toBuffer({ bcid: 'azteccode', text: value, scale: 3 });
     return `data:image/png;base64,${png.toString('base64')}`;
@@ -244,39 +255,35 @@ async function generateAztecPng(value: string): Promise<string> {
 
 async function renderLabels(labels: LabelData[], config: Config, isMock: boolean): Promise<string> {
   const agencyCode = config.agencyCode || "038";
+  // 🔧 Ref2 base : senderName2 si défini, sinon senderName — sans duplication
+  const ref2Base   = (config.senderName2 || config.senderName || "EXPEDITEUR")!.toUpperCase().replace(/\s/g, "_");
 
   const labelsWithData = await Promise.all(labels.map(async (label) => {
-    // Zone 12/13 — BarCode complet 28 chars
-    const barCode28 = label.barCode || "";
-    // Zone 9 / Ref 1 — BarcodeId (ex: 13735327170900)
-    const barcodeId = label.trackingNumber || label.orderName.replace("#","");
+    // Zone 9 Track = BarcodeId DPD (ex: 13735327170900) — null si pas encore d'IP whitelist
+    const trackingNumber = label.trackingNumber;
+    // Zone 12/13 = BarCode 28 chars — null si pas encore d'IP whitelist
+    const barCode28      = label.barCode || "";
     // Zone 10
-    const serviceCode  = parseFloat(label.weight) <= 1 ? 'XD-B2C' : 'D-B2C';
-    const serviceNum   = parseFloat(label.weight) <= 1 ? '328' : '327';
-    // SKU séparé
-    const skuDisplay   = label.sku || "";
-    // Ref 2
-    const ref2Display  = `${(config.senderName2 || config.senderName || "EXPEDITEUR")!.toUpperCase().replace(/\s/g,"_")}_${label.orderName.replace("#","")}`;
+    const serviceCode    = parseFloat(label.weight) <= 1 ? 'XD-B2C' : 'D-B2C';
+    const serviceNum     = parseFloat(label.weight) <= 1 ? '328' : '327';
+    // Ref 1 = Numéro de cmde
+    const ref1Display    = label.orderName;
+    // Ref 2 = senderName2
+    const ref2Display   = label.orderName.replace("#", "");
 
-    // Zone 11 — Plan de transport
-    const transportDepot    = "";  // sera rempli après whitelisting IP
-    const transportRouting  = "";
-    const transportSortCode = "";
-    const transportTournee  = "";
-    const transportCpDest   = "";
-
+    // Génère les codes seulement si on a les données réelles
     const [barcode128Url, refBarcodeUrl, aztecUrl] = await Promise.all([
-      generateBarcode128(barCode28),
-      generateRefBarcode128(label.sku || label.orderName.replace("#","")),
-      generateAztecPng(barCode28),
+      generateBarcode128(barCode28),                              // Zone 12 — BarCode DPD
+      generateRefBarcode128(label.sku || label.orderName.replace("#","")), // Zone 8 — ref client
+      generateAztecPng(barCode28),                               // Zone 5 — Aztec DPD
     ]);
 
-    // Zone 13 — légende formatée
+    // Zone 13 — légende barcode formatée
     const barcode13Legend = barCode28.length >= 20
       ? `${barCode28.slice(0,4)} ${barCode28.slice(4,7)} ${barCode28.slice(7,11)} ${barCode28.slice(11,15)} ${barCode28.slice(15,19)} ${barCode28.slice(19,21)} ${barCode28.slice(21,24)} ${barCode28.slice(24,27)} ${barCode28.slice(27)}`
-      : barCode28;
+      : "";
 
-    return { ...label, barCode28, barcodeId, serviceCode, serviceNum, skuDisplay, ref2Display, barcode128Url, refBarcodeUrl, aztecUrl, barcode13Legend };
+    return { ...label, trackingNumber, barCode28, serviceCode, serviceNum, ref1Display, ref2Display, barcode128Url, refBarcodeUrl, aztecUrl, barcode13Legend };
   }));
 
   return `<!DOCTYPE html>
@@ -310,12 +317,12 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
 
     /* Zone 4+5+8 */
     .middle { display: grid; grid-template-columns: 1fr auto; border-bottom: 1px solid #000; font-size: 6pt; }
-    .middle-left { padding: 1mm 2mm; border-right: 1px solid #000; }
+    .middle-left { display: flex; flex-direction: column; padding: 1mm 2mm; border-right: 1px solid #000; }
+    .middle-left-refs { flex: 1; }
+    .middle-left-bottom { border-top: 1px solid #ddd; padding-top: 1mm; display: flex; justify-content: space-between; align-items: center; }
     .row { margin-bottom: 0.8mm; line-height: 1.3; }
     .row .lbl { font-size: 5pt; color: #444; display: block; }
-    .row-info { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 1mm; }
-    .ref-barcode { margin: 0.5mm 0; }
-    .ref-barcode img { max-width: 100%; height: 7mm; }
+    .ref-barcode img { height: 7mm; max-width: 60%; }
     .middle-right { display: grid; grid-template-columns: auto auto; }
     .colis-poids { display: flex; flex-direction: column; border-right: 1px solid #000; }
     .colis-badge { padding: 1mm 2.5mm; border-bottom: 1px solid #000; flex: 1; }
@@ -331,26 +338,29 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     .tracking { display: grid; grid-template-columns: 1fr auto; padding: 1mm 2mm; border-bottom: 1px solid #000; align-items: center; }
     .track-label { font-size: 4.5pt; color: #444; }
     .tracking-number { font-size: 16pt; font-weight: 700; letter-spacing: 1px; line-height: 1; }
+    .tracking-number-pending { font-size: 8pt; color: #aaa; font-style: italic; }
     .service-block { text-align: right; }
     .service-code { font-size: 9pt; font-weight: 700; }
     .service-lbl { font-size: 4.5pt; color: #444; }
 
-    /* Zone 11 */
+    /* Zone 11 — Plan de transport */
     .transport { border-bottom: 1px solid #000; }
-    .transport-row1 { display: grid; grid-template-columns: auto 1fr auto; align-items: center; padding: 0.5mm 2mm; gap: 2mm; }
-    .transport-row2 { display: grid; grid-template-columns: auto 1fr auto; align-items: center; padding: 0.3mm 2mm; gap: 2mm; border-top: 1px solid #ccc; }
-    .depot { background: #000 !important; color: #fff !important; font-size: 14pt; font-weight: 900; padding: 0.3mm 3mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .depot-sm { background: #000 !important; color: #fff !important; font-size: 9pt; font-weight: 700; padding: 0.3mm 2mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .routing { font-size: 12pt; font-weight: 700; text-align: center; }
-    .routing-sub { font-size: 9pt; font-weight: 700; text-align: center; }
-    .sort { background: #000 !important; color: #fff !important; font-size: 12pt; font-weight: 700; padding: 0.3mm 2mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .transport-row1 { display: grid; grid-template-columns: auto 1fr auto; align-items: center; padding: 0.5mm 2mm; gap: 2mm; min-height: 7mm; }
+    .transport-row2 { display: grid; grid-template-columns: auto 1fr auto; align-items: center; padding: 0.3mm 2mm; gap: 2mm; border-top: 1px solid #ccc; min-height: 5mm; }
+    .depot { background: #000 !important; color: #fff !important; font-size: 14pt; font-weight: 900; padding: 0.3mm 3mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; min-width: 8mm; text-align: center; }
+    .depot-sm { background: #000 !important; color: #fff !important; font-size: 9pt; font-weight: 700; padding: 0.3mm 2mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; min-width: 8mm; text-align: center; }
+    .routing { font-size: 14pt; font-weight: 700; text-align: center; }
+    .routing-pending { font-size: 7pt; color: #aaa; text-align: center; font-style: italic; }
+    .sort { background: #000 !important; color: #fff !important; font-size: 12pt; font-weight: 700; padding: 0.3mm 2mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; min-width: 10mm; text-align: center; }
     .sort-num { font-size: 14pt; font-weight: 900; text-align: center; }
+    .sort-num-pending { font-size: 7pt; color: #aaa; font-style: italic; text-align: center; }
 
     /* Zone 12+13 */
     .barcode-section { padding: 1mm 2mm 0.5mm; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     .barcode-img { width: 92%; height: auto; image-rendering: pixelated; }
     .barcode-legend { font-size: 5pt; color: #444; margin-top: 0.5mm; text-align: center; letter-spacing: 0.5px; }
     .barcode-meta { font-size: 4pt; color: #888; margin-top: 0.5mm; text-align: center; }
+    .barcode-pending { font-size: 6pt; color: #aaa; font-style: italic; text-align: center; }
 
     @media print { * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } }
   </style>
@@ -359,13 +369,13 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
 ${labelsWithData.map(({
   orderName, index, total, destName, destCompany, destAddress, destAddress2,
   destZip, destCity, destPhone, weight,
-  barCode28, barcodeId, serviceCode, serviceNum,
-  skuDisplay, ref2Display,
+  trackingNumber, barCode28, serviceCode, serviceNum,
+  ref1Display, ref2Display,
   barcode128Url, refBarcodeUrl, aztecUrl, barcode13Legend,
 }) => `  <div class="label">
-    ${isMock ? `<div class="mock-banner">&#9888; Apercu - Mode test</div>` : ""}
+    ${isMock ? `<div class="mock-banner">&#9888; Apercu - Mode test (sans credentials DPD)</div>` : ""}
 
-    <!-- Zone 1+2+3 -->
+    <!-- Zone 1+2+3 : Destinataire / Expediteur / Agence -->
     <div class="header">
       <div class="header-dest">
         <div class="dest-name">${destCompany ? `${destCompany}<br/><span style="font-size:7pt;font-weight:400">${destName}</span>` : destName}</div>
@@ -384,7 +394,7 @@ ${labelsWithData.map(({
           ${config.senderZip || ""} ${config.senderCity || ""}
         </div>
         <div class="header-agence">
-          <div class="lbl">DPD-Etablissement ${config.agencyCode || "038"}</div>
+          <div class="lbl">DPD-Etablissement ${agencyCode}</div>
           ${config.senderAddress || ""}<br>
           ${config.senderZip || ""} ${config.senderCity || ""}
         </div>
@@ -392,17 +402,19 @@ ${labelsWithData.map(({
       <img src="https://dpd-shopify-oken.vercel.app/dpd-logo.png" alt="DPD" class="dpd-logo"/>
     </div>
 
-    <!-- Zone 4+5+8 -->
+    <!-- Zone 4+5+8 : Refs / Aztec / Barcode ref -->
     <div class="middle">
       <div class="middle-left">
-        <div class="row"><span class="lbl">Contact</span><span>Tel ${destPhone || "-"}</span></div>
-        <div class="row"><span class="lbl">Ref 1</span><span>${barcodeId}</span></div>
-        ${skuDisplay ? `<div class="row"><span class="lbl">SKUs</span><span>${skuDisplay}</span></div>` : ""}
-        <div class="row"><span class="lbl">Ref 2</span><span>${ref2Display}</span></div>
-        <!-- Zone 8 : barcode ref + logo Predict -->
-        <div class="row-info">
-          <div class="ref-barcode">${refBarcodeUrl ? `<img src="${refBarcodeUrl}" alt="ref barcode"/>` : ""}</div>
-          <div><img src="https://dpd-shopify-oken.vercel.app/dpd-predict-livraison.png" style="height:9px" alt="Predict"/></div>
+        <!-- Bloc 1 : refs texte -->
+        <div class="middle-left-refs">
+          <div class="row"><span class="lbl">Contact</span><span>Tel ${destPhone || "-"}</span></div>
+          <div class="row"><span class="lbl">Ref 1</span><span>${ref1Display}</span></div>
+          <div class="row"><span class="lbl">Ref 2</span><span>${ref2Display}</span></div>
+        </div>
+        <!-- Bloc 2 : barcode ref (zone 8) + logo Predict -->
+        <div class="middle-left-bottom">
+          <div class="ref-barcode">${refBarcodeUrl ? `<img src="${refBarcodeUrl}" alt="barcode ref"/>` : ""}</div>
+          <img src="https://dpd-shopify-oken.vercel.app/dpd-predict-livraison.png" style="height:9px" alt="Predict"/>
         </div>
       </div>
       <div class="middle-right">
@@ -410,16 +422,18 @@ ${labelsWithData.map(({
           <div class="colis-badge"><div class="lbl">Colis</div><strong>${index}/${total}</strong></div>
           <div class="poids-badge"><div class="lbl">Poids</div><strong>${weight} kg</strong></div>
         </div>
-        <!-- Zone 5 : Aztec -->
-        <div class="aztec-block">${aztecUrl ? `<img src="${aztecUrl}" alt="Aztec"/>` : ""}</div>
+        <!-- Zone 5 : Aztec DPD -->
+        <div class="aztec-block">${aztecUrl ? `<img src="${aztecUrl}" alt="Aztec DPD"/>` : ""}</div>
       </div>
     </div>
 
-    <!-- Zone 9+10 -->
+    <!-- Zone 9+10 : Tracking + Service -->
     <div class="tracking">
       <div>
         <div class="track-label">Track</div>
-        <div class="tracking-number">${barcodeId}</div>
+        ${trackingNumber
+          ? `<div class="tracking-number">${trackingNumber}</div>`
+          : `<div class="tracking-number-pending">En attente whitelisting IP DPD</div>`}
       </div>
       <div class="service-block">
         <div class="service-code">${serviceCode}</div>
@@ -427,24 +441,28 @@ ${labelsWithData.map(({
       </div>
     </div>
 
-    <!-- Zone 11 : Plan de transport -->
+    <!-- Zone 11 : Plan de transport (disponible apres whitelisting IP) -->
     <div class="transport">
       <div class="transport-row1">
-        <div class="depot">—</div>
-        <div class="routing">—</div>
-        <div class="sort">—</div>
+        <div class="depot">&nbsp;</div>
+        ${trackingNumber
+          ? `<div class="routing-pending">Plan de transport — disponible apres whitelisting IP</div>`
+          : `<div class="routing-pending">Plan de transport — disponible apres whitelisting IP</div>`}
+        <div class="sort">&nbsp;&nbsp;&nbsp;</div>
       </div>
       <div class="transport-row2">
-        <div class="depot-sm">—</div>
-        <div class="routing-sub">—</div>
-        <div class="sort-num">—</div>
+        <div class="depot-sm">&nbsp;</div>
+        <div class="routing-pending"></div>
+        <div class="sort-num-pending"></div>
       </div>
     </div>
 
-    <!-- Zone 12+13 -->
+    <!-- Zone 12+13 : Barcode DPD + legende -->
     <div class="barcode-section">
-      ${barcode128Url ? `<img class="barcode-img" src="${barcode128Url}" alt="Code-barres DPD"/>` : `<span style="font-size:7pt;color:#999">Barcode indisponible</span>`}
-      <div class="barcode-legend">${barcode13Legend}</div>
+      ${barcode128Url
+        ? `<img class="barcode-img" src="${barcode128Url}" alt="Code-barres DPD"/>`
+        : `<div class="barcode-pending">Barcode DPD disponible apres whitelisting IP</div>`}
+      ${barcode13Legend ? `<div class="barcode-legend">${barcode13Legend}</div>` : ""}
       <div class="barcode-meta">${new Date().toLocaleDateString("fr-FR")} ${new Date().toLocaleTimeString("fr-FR")} &middot; ${orderName} &middot; Colis ${index}/${total}</div>
     </div>
 
