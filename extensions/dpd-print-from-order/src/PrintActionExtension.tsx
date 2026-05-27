@@ -260,21 +260,24 @@ function Extension() {
 
                   {/* Produits avec champ quantité */}
                   {lines.map(line => {
-                    const ci      = c.items.find(i => i.itemId === line.id);
-                    const current = ci?.qty ?? 0;
-                    const label   = `${line.sku ? line.sku + ' — ' : ''}${line.title} (max ${line.qty})`;
+                    const ci        = c.items.find(i => i.itemId === line.id);
+                    const current   = ci?.qty ?? 0;
+                    const remaining = line.qty - assignedQty(line.id);
+                    const label     = `${line.sku ? line.sku + ' — ' : ''}${line.title}`;
+
                     return (
-                      <s-stack direction="inline" gap="base">
-                        <s-text tone="subdued">{label}</s-text>
-                        <s-button
-                          variant="plain"
-                          onClick={() => setItemQty(c.id, line.id, current - 1)}
-                        >−</s-button>
-                        <s-text><strong>{String(current)}</strong></s-text>
-                        <s-button
-                          variant="plain"
-                          onClick={() => setItemQty(c.id, line.id, current + 1)}
-                        >+</s-button>
+                      <s-stack direction="block" gap="none">
+                        <s-stack direction="inline" gap="base">
+                          <s-text>{label}</s-text>
+                          <s-badge tone={remaining > 0 ? "warning" : "success"}>
+                            {remaining > 0 ? `${remaining} restant(s)` : "✓ OK"}
+                          </s-badge>
+                        </s-stack>
+                        <s-stack direction="inline" gap="base">
+                          <s-button variant="plain" onClick={() => setItemQty(c.id, line.id, current - 1)}>−</s-button>
+                          <s-text><strong>{String(current)}</strong> / {line.qty}</s-text>
+                          <s-button variant="plain" onClick={() => setItemQty(c.id, line.id, current + 1)}>+</s-button>
+                        </s-stack>
                       </s-stack>
                     );
                   })}
