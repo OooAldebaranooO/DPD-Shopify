@@ -507,11 +507,11 @@ ${labelsWithData.map(({
       </div>
     </div>
 
-    <!-- Zone 11 : Plan de transport (disponible apres whitelisting IP) -->
+    <!-- Zone 11 : Plan de transport -->
     <div class="transport">
       <div class="transport-row1">
         <div class="depot">&nbsp;&nbsp;</div>
-        <div class="routing-pending">Plan de transport — disponible apres whitelisting IP</div>
+        <div class="routing-pending">Plan de transport</div>
         <div class="sort">&nbsp;&nbsp;&nbsp;&nbsp;</div>
       </div>
       <div class="transport-row2">
