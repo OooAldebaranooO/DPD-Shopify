@@ -117,7 +117,10 @@ export async function loader({ request }: { request: Request }) {
 }
 
 async function soapRequest(config: Config, p: SoapParams): Promise<string> {
-  const WS_URL = "https://e-station.cargonet.software/dpd-eprintwebservice/eprintwebservice.asmx";
+  // Passe par le proxy OVH (IP fixe 5.135.23.164 whitelistée chez DPD)
+  // Si PROXY_URL n'est pas défini, appel direct (fallback)
+  const WS_URL = process.env.PROXY_URL || "https://e-station.cargonet.software/dpd-eprintwebservice/eprintwebservice.asmx";
+  const proxyToken = process.env.PROXY_SECRET || "";
   const body = `<?xml version="1.0" encoding="utf-8"?>
 <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:imt="http://www.cargonet.software">
   <soap:Header><imt:UserCredentials><imt:userid>${config.login}</imt:userid><imt:password>${config.password}</imt:password></imt:UserCredentials></soap:Header>
@@ -155,7 +158,7 @@ async function soapRequest(config: Config, p: SoapParams): Promise<string> {
     </CreateShipmentWithLabelsBc>
   </soap:Body>
 </soap:Envelope>`;
-  const response = await fetch(WS_URL, { method: "POST", headers: { "Content-Type": "text/xml; charset=utf-8", "SOAPAction": "http://www.cargonet.software/CreateShipmentWithLabelsBc" }, body });
+  const response = await fetch(WS_URL, { method: "POST", headers: { "Content-Type": "text/xml; charset=utf-8", "SOAPAction": "http://www.cargonet.software/CreateShipmentWithLabelsBc", ...(proxyToken ? { "X-Proxy-Token": proxyToken } : {}) }, body });
   return response.text();
 }
 
