@@ -14,6 +14,7 @@ interface Config {
   senderAddress:  string | undefined;
   senderZip:      string | undefined;
   senderCity:     string | undefined;
+  senderPhone:    string | undefined; // 🔧 AJOUT : obligatoire selon doc DPD
 }
 
 interface OrderItem {
@@ -53,6 +54,21 @@ interface LabelData {
   fromApi:        boolean;
 }
 
+interface SoapParams {
+  destName:     string;
+  destCompany:  string;
+  destAddress:  string;
+  destAddress2: string;
+  destZip:      string;
+  destCity:     string;
+  destPhone:    string;
+  orderName:    string;
+  ref1:         string;
+  ref2:         string;
+  weight:       string;
+  shippingDate: string;
+}
+
 // ── Action (OPTIONS) ─────────────────────────────────────────────────────────
 
 export async function action({ request }: { request: Request }) {
@@ -84,6 +100,7 @@ export async function loader({ request }: { request: Request }) {
     senderAddress:  process.env.DPD_SENDER_ADDRESS,
     senderZip:      process.env.DPD_SENDER_ZIP,
     senderCity:     process.env.DPD_SENDER_CITY,
+    senderPhone:    process.env.DPD_SENDER_PHONE, // 🔧 AJOUT
   };
 
   const isMock = !config.login || !config.password;
@@ -95,28 +112,30 @@ export async function loader({ request }: { request: Request }) {
       const raw = await kv.get<string>(`print:${token}`);
       if (raw) {
         const orders: OrderPayload[] = typeof raw === 'string' ? JSON.parse(raw) : raw as OrderPayload[];
-        //await kv.del(`print:${token}`);
+        // On ne supprime PAS le token (kv.del) pour que la 2ème requête d'impression fonctionne
+        // Le token expire naturellement après 10 min
 
         for (const order of orders) {
           const total = order.items.length;
           order.items.forEach((item, i) => {
             labels.push({
-              orderName:    order.orderName,
-              index:        i + 1,
+              orderName:      order.orderName,
+              index:          i + 1,
               total,
-              destName:     order.destName,
-              destCompany:  order.destCompany,
-              destAddress:  order.destAddress,
-              destAddress2: order.destAddress2,
-              destZip:      order.destZip,
-              destCity:     order.destCity,
-              destPhone:    order.destPhone,
-              weight:       item.weight.toFixed(2),
-              sku:          item.sku,
-              title:        item.title,
-              labelPdf:     null,
+              destName:       order.destName,
+              destCompany:    order.destCompany,
+              destAddress:    order.destAddress,
+              destAddress2:   order.destAddress2,
+              destZip:        order.destZip,
+              destCity:       order.destCity,
+              destPhone:      order.destPhone,
+              // 🔧 FIX poids minimum 0.01kg obligatoire selon doc DPD
+              weight:         Math.max(0.01, item.weight).toFixed(2),
+              sku:            item.sku,
+              title:          item.title,
+              labelPdf:       null,
               trackingNumber: null,
-              fromApi:      false,
+              fromApi:        false,
             });
           });
         }
@@ -162,7 +181,6 @@ export async function loader({ request }: { request: Request }) {
       labels = await callDpdEprintBulk(config, labels);
     } catch (e) {
       console.error("Erreur EPrint bulk:", (e as Error).message);
-      // garde les labels mock en cas d'erreur
     }
   }
 
@@ -176,7 +194,7 @@ export async function loader({ request }: { request: Request }) {
   });
 }
 
-// ── DPD EPrint SOAP — Mode individuel (OrderParams) ──────────────────────────
+// ── DPD EPrint SOAP — Mode individuel ────────────────────────────────────────
 
 interface OrderParams {
   orderName:   string;
@@ -194,26 +212,33 @@ interface OrderParams {
 }
 
 async function callDpdEprint(config: Config, order: OrderParams): Promise<LabelData[]> {
-  const WS_URL = "https://e-station.cargonet.software/dpd-eprintwebservice/eprintwebservice.asmx";
   const shippingDate = new Date().toLocaleDateString("fr-FR").split("/").join(".");
-
-  const weightsList = String(order.weights || "1").split(",").map(w => parseFloat(w) || 0);
-  const skusList    = String(order.skusParam   || "").split("|").map(s => decodeURIComponent(s));
-  const titlesList  = String(order.titlesParam || "").split("|").map(s => decodeURIComponent(s));
+  const weightsList  = String(order.weights || "1").split(",").map(w => parseFloat(w) || 0);
+  const skusList     = String(order.skusParam   || "").split("|").map(s => decodeURIComponent(s));
+  const titlesList   = String(order.titlesParam || "").split("|").map(s => decodeURIComponent(s));
+  const ref2Base     = (config.senderName2 || config.senderName || "EXPEDITEUR")!.toUpperCase().replace(/\s/g, "_");
 
   const labels: LabelData[] = [];
 
   for (let i = 1; i <= order.count; i++) {
-    const itemWeight = (weightsList[i - 1] ?? weightsList[0] ?? 1).toFixed(2);
+    // 🔧 FIX poids minimum 0.01kg
+    const itemWeight = Math.max(0.01, weightsList[i - 1] ?? weightsList[0] ?? 1).toFixed(2);
     const itemSku    = skusList[i - 1]   ?? "";
     const itemTitle  = titlesList[i - 1] ?? "";
-    const ref1       = itemSku || order.orderName;
 
     const xml = await soapRequest(config, {
-      destName: order.destName, destCompany: order.destCompany,
-      destAddress: order.destAddress, destAddress2: order.destAddress2,
-      destZip: order.destZip, destCity: order.destCity, destPhone: order.destPhone,
-      orderName: order.orderName, ref1, weight: itemWeight, shippingDate,
+      destName:     order.destName,
+      destCompany:  order.destCompany,
+      destAddress:  order.destAddress,
+      destAddress2: order.destAddress2,
+      destZip:      order.destZip,
+      destCity:     order.destCity,
+      destPhone:    order.destPhone,
+      orderName:    order.orderName,
+      ref1:         itemSku || order.orderName,
+      ref2:         `${ref2Base}_${order.orderName.replace("#", "")}`,
+      weight:       itemWeight,
+      shippingDate,
     });
 
     const labelMatch = xml.match(/<label>([\s\S]*?)<\/label>/);
@@ -222,33 +247,49 @@ async function callDpdEprint(config: Config, order: OrderParams): Promise<LabelD
     if (errMatch) throw new Error(errMatch[1]);
 
     labels.push({
-      orderName: order.orderName, index: i, total: order.count,
-      destName: order.destName, destCompany: order.destCompany,
-      destAddress: order.destAddress, destAddress2: order.destAddress2,
-      destZip: order.destZip, destCity: order.destCity, destPhone: order.destPhone,
-      weight: itemWeight, sku: itemSku, title: itemTitle,
+      orderName:      order.orderName,
+      index:          i,
+      total:          order.count,
+      destName:       order.destName,
+      destCompany:    order.destCompany,
+      destAddress:    order.destAddress,
+      destAddress2:   order.destAddress2,
+      destZip:        order.destZip,
+      destCity:       order.destCity,
+      destPhone:      order.destPhone,
+      weight:         itemWeight,
+      sku:            itemSku,
+      title:          itemTitle,
       labelPdf:       labelMatch?.[1]?.trim() || null,
       trackingNumber: trackMatch?.[1]?.trim() || null,
-      fromApi: true,
+      fromApi:        true,
     });
   }
 
   return labels;
 }
 
-// ── DPD EPrint SOAP — Mode bulk PARALLÈLE ────────────────────────────────────
+// ── DPD EPrint SOAP — Mode bulk parallèle ────────────────────────────────────
 
 async function callDpdEprintBulk(config: Config, labels: LabelData[]): Promise<LabelData[]> {
   const shippingDate = new Date().toLocaleDateString("fr-FR").split("/").join(".");
+  const ref2Base     = (config.senderName2 || config.senderName || "EXPEDITEUR")!.toUpperCase().replace(/\s/g, "_");
 
   const results = await Promise.all(labels.map(async (label) => {
     try {
       const xml = await soapRequest(config, {
-        destName: label.destName, destCompany: label.destCompany,
-        destAddress: label.destAddress, destAddress2: label.destAddress2,
-        destZip: label.destZip, destCity: label.destCity, destPhone: label.destPhone,
-        orderName: label.orderName, ref1: label.sku || label.orderName,
-        weight: label.weight, shippingDate,
+        destName:     label.destName,
+        destCompany:  label.destCompany,
+        destAddress:  label.destAddress,
+        destAddress2: label.destAddress2,
+        destZip:      label.destZip,
+        destCity:     label.destCity,
+        destPhone:    label.destPhone,
+        orderName:    label.orderName,
+        ref1:         label.sku || label.orderName,
+        ref2:         `${ref2Base}_${label.orderName.replace("#", "")}`,
+        weight:       label.weight,
+        shippingDate,
       });
 
       const labelMatch = xml.match(/<label>([\s\S]*?)<\/label>/);
@@ -256,8 +297,8 @@ async function callDpdEprintBulk(config: Config, labels: LabelData[]): Promise<L
       const errMatch   = xml.match(/<ErrorMessage>([\s\S]*?)<\/ErrorMessage>/i);
 
       if (errMatch) {
-        console.error("Erreur DPD pour", label.orderName, errMatch[1]);
-        return label; // garde le label mock en cas d'erreur
+        console.error("Erreur DPD pour", label.orderName, ":", errMatch[1]);
+        return label;
       }
 
       return {
@@ -268,21 +309,21 @@ async function callDpdEprintBulk(config: Config, labels: LabelData[]): Promise<L
       };
     } catch (e) {
       console.error("Erreur SOAP pour", label.orderName, e);
-      return label; // fallback mock si erreur réseau
+      return label;
     }
   }));
 
   return results;
 }
 
-// ── SOAP helper partagé ───────────────────────────────────────────────────────
+// ── SOAP helper ───────────────────────────────────────────────────────────────
 
-async function soapRequest(config: Config, p: {
-  destName: string; destCompany: string; destAddress: string; destAddress2: string;
-  destZip: string; destCity: string; destPhone: string;
-  orderName: string; ref1: string; weight: string; shippingDate: string;
-}): Promise<string> {
+async function soapRequest(config: Config, p: SoapParams): Promise<string> {
   const WS_URL = "https://e-station.cargonet.software/dpd-eprintwebservice/eprintwebservice.asmx";
+
+  // 🔧 FIX : pour Predict, le name du destinataire doit être nom+prénom (pas company)
+  // On envoie destName dans name, et destCompany dans name2 via receiverinfo
+  const receiverName = p.destName || p.destCompany;
 
   const body = `<?xml version="1.0" encoding="utf-8"?>
 <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:imt="http://www.cargonet.software">
@@ -299,34 +340,44 @@ async function soapRequest(config: Config, p: {
         <customer_centernumber>${config.agencyCode}</customer_centernumber>
         <customer_number>${config.contractNumber}</customer_number>
         <receiveraddress>
-          <name>${escapeXml(p.destCompany || p.destName)}</name>
+          <name>${escapeXml(receiverName)}</name>
           <street>${escapeXml(p.destAddress)}</street>
           ${p.destAddress2 ? `<houseNo>${escapeXml(p.destAddress2)}</houseNo>` : ""}
           <countryPrefix>FR</countryPrefix>
-          <zipCode>${p.destZip}</zipCode>
+          <zipCode>${escapeXml(p.destZip)}</zipCode>
           <city>${escapeXml(p.destCity)}</city>
+          <phoneNumber>${escapeXml(p.destPhone)}</phoneNumber>
         </receiveraddress>
+        ${p.destCompany ? `
         <receiverinfo>
-          <contact><type>phone</type><value>${p.destPhone}</value></contact>
-        </receiverinfo>
+          <contact>${escapeXml(p.destName)}</contact>
+          <name2>${escapeXml(p.destCompany)}</name2>
+        </receiverinfo>` : `
+        <receiverinfo>
+          <contact>${escapeXml(p.destName)}</contact>
+        </receiverinfo>`}
         <shipperaddress>
           <name>${escapeXml(config.senderName ?? "")}</name>
           <street>${escapeXml(config.senderAddress ?? "")}</street>
           <countryPrefix>FR</countryPrefix>
-          <zipCode>${config.senderZip}</zipCode>
+          <zipCode>${escapeXml(config.senderZip ?? "")}</zipCode>
           <city>${escapeXml(config.senderCity ?? "")}</city>
+          <phoneNumber>${escapeXml(config.senderPhone ?? "")}</phoneNumber>
         </shipperaddress>
         <services>
-          <contact><type>predict</type><value>${p.destPhone}</value></contact>
+          <contact>
+            <type>predict</type>
+            <value>${escapeXml(p.destPhone)}</value>
+          </contact>
         </services>
         <weight>${p.weight}</weight>
         <shippingdate>${p.shippingDate}</shippingdate>
-        <referencenumber>${escapeXml(p.ref1)}</referencenumber>
-        <reference2>${escapeXml(
-          (config.senderName2 || config.senderName || "EXPEDITEUR")!
-            .toUpperCase().replace(/\s/g, "_")
-        )}_${p.orderName.replace("#", "")}</reference2>
-        <labelType><type>PDF</type><format>A6</format></labelType>
+        <referencenumber>${escapeXml(p.ref1.slice(0, 35))}</referencenumber>
+        <reference2>${escapeXml(p.ref2.slice(0, 35))}</reference2>
+        <labelType>
+          <type>PDF</type>
+          <format>A6</format>
+        </labelType>
       </request>
     </CreateShipmentWithLabelsBc>
   </soap:Body>
@@ -341,10 +392,12 @@ async function soapRequest(config: Config, p: {
     body,
   });
 
-  return response.text();
+  const xml = await response.text();
+  console.log("DPD EPrint réponse:", xml.slice(0, 300));
+  return xml;
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function escapeXml(str: string): string {
   return String(str || "")
@@ -363,14 +416,15 @@ function buildMockLabels(
   return Array.from({ length: count }, (_, i) => ({
     orderName, index: i + 1, total: count,
     destName, destCompany, destAddress, destAddress2, destZip, destCity, destPhone,
-    weight:   (weightsList[i] ?? weightsList[0] ?? 1).toFixed(2),
+    // 🔧 FIX poids minimum
+    weight:   Math.max(0.01, weightsList[i] ?? weightsList[0] ?? 1).toFixed(2),
     sku:      skusList[i]   ?? "",
     title:    titlesList[i] ?? "",
     labelPdf: null, trackingNumber: null, fromApi: false,
   }));
 }
 
-// ── Barcode & QR ─────────────────────────────────────────────────────────────
+// ── Barcode & QR ──────────────────────────────────────────────────────────────
 
 async function generateBarcodeBase64(value: string): Promise<string> {
   try {
@@ -392,11 +446,12 @@ async function generateQrSvg(value: string): Promise<string> {
   });
 }
 
-// ── Render ───────────────────────────────────────────────────────────────────
+// ── Render ────────────────────────────────────────────────────────────────────
 
 async function renderLabels(labels: LabelData[], config: Config, isMock: boolean): Promise<string> {
   const agencyCode = config.agencyCode || "038";
 
+  // Mode API réelle avec PDF DPD → affiche les vrais PDFs DPD
   if (!isMock && labels.some(l => l.labelPdf)) {
     const embeds = labels.map(l => l.labelPdf
       ? `<div style="page-break-after:always">
@@ -408,19 +463,21 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
       </head><body>${embeds}</body></html>`;
   }
 
+  // Mode mock → étiquette HTML custom
   const labelsWithData = await Promise.all(labels.map(async (label) => {
     const trackingNumber = label.trackingNumber
       || `1038${Math.floor(Math.random()*9000+1000)}${Math.floor(Math.random()*9000+1000)}${Math.floor(Math.random()*90+10)}C`;
     const fakeRouting = `FR-DPD-${Math.floor(Math.random()*9000+1000)}-${Math.floor(Math.random()*900+100)}-FR-${config.senderZip || "38120"}`;
     const fakeSort    = `${agencyCode}SA`;
     const ref1Display = label.sku || label.orderName.replace("#", "");
+    const ref2Display = `${(config.senderName2 || config.senderName || "EXPEDITEUR")!.toUpperCase().replace(/\s/g,"_")}_${label.orderName.replace("#","")}`;
 
     const [barcodeDataUrl, qrSvg] = await Promise.all([
       generateBarcodeBase64(trackingNumber),
       generateQrSvg(trackingNumber),
     ]);
 
-    return { ...label, trackingNumber, fakeRouting, fakeSort, ref1Display, barcodeDataUrl, qrSvg };
+    return { ...label, trackingNumber, fakeRouting, fakeSort, ref1Display, ref2Display, barcodeDataUrl, qrSvg };
   }));
 
   return `<!DOCTYPE html>
@@ -479,7 +536,7 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
 <body>
   ${labelsWithData.map(({ orderName, index, total, destName, destCompany, destAddress, destAddress2,
     destZip, destCity, destPhone, weight,
-    trackingNumber, fakeRouting, fakeSort, ref1Display, barcodeDataUrl, qrSvg }) => `
+    trackingNumber, fakeRouting, fakeSort, ref1Display, ref2Display, barcodeDataUrl, qrSvg }) => `
     <div class="label">
       ${isMock ? `<div class="mock-banner">⚠️ Aperçu — En attente de connexion à l'API DPD</div>` : ""}
       <div class="header">
@@ -514,7 +571,7 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
         <div class="middle-left">
           <div class="row"><span class="lbl">Contact</span><span>Tél ${destPhone || "—"}</span></div>
           <div class="row"><span class="lbl">Ref 1</span><span>${ref1Display}</span></div>
-          <div class="row"><span class="lbl">Ref 2</span><span>${(config.senderName2 || config.senderName || "EXPEDITEUR")!.toUpperCase().replace(/\s/g,"_")}_${orderName.replace("#","")}</span></div>
+          <div class="row"><span class="lbl">Ref 2</span><span>${ref2Display}</span></div>
           <div class="row"><span class="lbl">Info</span><span style="font-style:italic;">Predict</span></div>
         </div>
         <div class="middle-right">
