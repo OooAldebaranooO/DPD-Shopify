@@ -241,7 +241,6 @@ async function callDpdEprint(config: Config, order: OrderParams): Promise<LabelD
       shippingDate,
     });
 
-    const labelMatch = xml.match(/<label>([\s\S]*?)<\/label>/);
     const trackMatch = xml.match(/<parcelnumber>([\s\S]*?)<\/parcelnumber>/i);
     const errMatch   = xml.match(/<ErrorMessage>([\s\S]*?)<\/ErrorMessage>/i);
     if (errMatch) throw new Error(errMatch[1]);
@@ -260,7 +259,7 @@ async function callDpdEprint(config: Config, order: OrderParams): Promise<LabelD
       weight:         itemWeight,
       sku:            itemSku,
       title:          itemTitle,
-      labelPdf:       labelMatch?.[1]?.trim() || null,
+      labelPdf:       null,
       trackingNumber: trackMatch?.[1]?.trim() || null,
       fromApi:        true,
     });
@@ -292,7 +291,6 @@ async function callDpdEprintBulk(config: Config, labels: LabelData[]): Promise<L
         shippingDate,
       });
 
-      const labelMatch = xml.match(/<label>([\s\S]*?)<\/label>/);
       const trackMatch = xml.match(/<parcelnumber>([\s\S]*?)<\/parcelnumber>/i);
       const errMatch   = xml.match(/<ErrorMessage>([\s\S]*?)<\/ErrorMessage>/i);
 
@@ -303,7 +301,7 @@ async function callDpdEprintBulk(config: Config, labels: LabelData[]): Promise<L
 
       return {
         ...label,
-        labelPdf:       labelMatch?.[1]?.trim() || null,
+        labelPdf:       null,
         trackingNumber: trackMatch?.[1]?.trim() || null,
         fromApi: true,
       };
@@ -334,7 +332,7 @@ async function soapRequest(config: Config, p: SoapParams): Promise<string> {
     </imt:UserCredentials>
   </soap:Header>
   <soap:Body>
-    <CreateShipmentWithLabelsBc xmlns="http://www.cargonet.software">
+    <CreateShipmentBc xmlns="http://www.cargonet.software">
       <request>
         <customer_countrycode>250</customer_countrycode>
         <customer_centernumber>${config.agencyCode}</customer_centernumber>
@@ -379,7 +377,7 @@ async function soapRequest(config: Config, p: SoapParams): Promise<string> {
           <format>A6</format>
         </labelType>
       </request>
-    </CreateShipmentWithLabelsBc>
+    </CreateShipmentBc>
   </soap:Body>
 </soap:Envelope>`;
 
@@ -387,7 +385,7 @@ async function soapRequest(config: Config, p: SoapParams): Promise<string> {
     method: "POST",
     headers: {
       "Content-Type": "text/xml; charset=utf-8",
-      "SOAPAction": "http://www.cargonet.software/CreateShipmentWithLabelsBc",
+      "SOAPAction": "http://www.cargonet.software/CreateShipmentBc",
     },
     body,
   });
