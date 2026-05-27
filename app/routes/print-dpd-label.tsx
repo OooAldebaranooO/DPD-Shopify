@@ -289,11 +289,22 @@ function parseShipmentResponse(xml: string): {
   if (errMatch) return { trackingNumber: null, barCode: null, error: errMatch[1] };
 
   // BarcodeId = numéro d'expédition (affiché en gros sur l'étiquette)
-  const trackMatch = xml.match(/<BarcodeId>([\s\S]*?)<\/BarcodeId>/i)
-                  || xml.match(/<parcelnumber>([\s\S]*?)<\/parcelnumber>/i);
+  const trackMatch = xml.match(/<BarcodeId>([\s\S]*?)<\/BarcodeId>/i) || xml.match(/<parcelnumber>([\s\S]*?)<\/parcelnumber>/i);
 
   // BarCode = barcode complet 28 chars (pour le scan et le Code 128)
   const barMatch   = xml.match(/<BarCode>([\s\S]*?)<\/BarCode>/i);
+
+  const labelMatch = xml.match(/<label>([\s\S]*?)<\/label>/);
+    if (labelMatch?.[1]) {
+      try {
+        const pdfBuffer = Buffer.from(labelMatch[1].trim(), 'base64');
+        const pdfParse = (await import('pdf-parse')).default;
+        const data = await pdfParse(pdfBuffer);
+        console.log("===PDF TEXT===", JSON.stringify(data.text));
+      } catch(e) {
+        console.error("PDF parse error:", e);
+      }
+    }
 
   console.log("DPD réponse XML (300 chars):", xml.slice(0, 300));
 
@@ -552,7 +563,7 @@ ${labelsWithData.map(({
         <div class="row"><span class="lbl">Contact</span><span>Tel ${destPhone || "-"}</span></div>
         <div class="row"><span class="lbl">Ref 1</span><span>${ref1Display}</span></div>
         <div class="row"><span class="lbl">Ref 2</span><span>${ref2Display}</span></div>
-        <div class="row"><span class="lbl">Info</span><span>${predictLogo}</span></div>
+        <div class="row" style="text-align: end;"><span class="lbl"></span><span>${predictLogo}</span></div>
       </div>
       <div class="middle-right">
         <div class="colis-poids">
