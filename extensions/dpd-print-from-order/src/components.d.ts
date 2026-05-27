@@ -27,6 +27,14 @@ declare namespace preact.JSX {
       'block-align'?: string;
       children?: any;
     };
+    's-checkbox': {
+      key?: string;
+      label?: string;  // ← ajoute ça
+      checked?: boolean;
+      onChange?: (e: any) => void;
+      disabled?: boolean;
+      children?: any;
+    };
 
     // ── Actions ───────────────────────────────────────────────────────────
     's-button': {
