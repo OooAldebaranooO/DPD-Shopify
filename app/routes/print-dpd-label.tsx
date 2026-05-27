@@ -168,7 +168,8 @@ async function parseShipmentResponse(xml: string): Promise<{ trackingNumber: str
   const barMatch   = xml.match(/<BarCode>([\s\S]*?)<\/BarCode>/i);
   // Normalise le BarCode : retire le % initial, ajoute X clé de contrôle en fin
   const rawBar = barMatch?.[1]?.trim() || null;
-  const barCode = rawBar ? rawBar.replace(/^%/, "") + "X" : null;
+  // Garde le % pour l'encodage barcode, ajoute X clé de contrôle
+  const barCode = rawBar ? (rawBar.startsWith("%") ? rawBar : "%" + rawBar) : null;
   return { trackingNumber: trackMatch?.[1]?.trim() || null, barCode, error: null };
 }
 
@@ -285,10 +286,11 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     ]);
 
     // Zone 13 — légende sous le grand barcode (formatée si 28 chars réels, brut si mock)
-    // Format : CP7 AGENCY4 NUMEXP10 SERVICE3 ISO3 X  (28 chars sans le %)
-    const barcode13Legend = label.barCode && barCode28.length >= 28
-      ? `${barCode28.slice(0,7)} ${barCode28.slice(7,11)} ${barCode28.slice(11,21)} ${barCode28.slice(21,24)} ${barCode28.slice(24,27)} ${barCode28.slice(27)}`
-      : barCode28;
+    // Légende : retire % initial, formate CP7 AGENCY4 NUMEXP10 SERVICE3 ISO3 X
+    const b = label.barCode ? barCode28.replace(/^%/, "") : barCode28;
+    const barcode13Legend = label.barCode && b.length >= 28
+      ? `${b.slice(0,7)} ${b.slice(7,11)} ${b.slice(11,21)} ${b.slice(21,24)} ${b.slice(24,27)} ${b.slice(27)}`
+      : b;
 
     return { ...label, trackingNumber, barCode28, serviceCode, serviceNum, ref1Display, ref2Display, skuDisplay, barcode128Url, refBarcodeUrl, aztecUrl, barcode13Legend };
   }));
