@@ -119,7 +119,7 @@ async function soapRequest(config: Config, p: SoapParams): Promise<string> {
   const isMobile = isMobilePhone(p.destPhone);
   console.log("[DPD] destPhone:", JSON.stringify(p.destPhone), "isMobile:", isMobile);
   const predictService = isMobile
-    ? `<services><contact><type>Predict</type><value>${escapeXml(p.destPhone)}</value></contact></services>`
+    ? `<services><contact><type>Predict</type><sms>${escapeXml(p.destPhone)}</sms></contact></services>`
     : "";
   const body = `<?xml version="1.0" encoding="utf-8"?>
 <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:imt="http://www.cargonet.software">
@@ -397,8 +397,8 @@ ${labelsWithData.map(({
         <div class="middle-left-refs">
           <div class="row"><span class="lbl">Contact</span><span>Tel ${destPhone || "-"}</span></div>
           <div class="row"><span class="lbl">Ref 1</span><span>${ref1Display}</span></div>
-          ${skuDisplay ? `<div class="row"><span class="lbl">SKUs</span><span>${skuDisplay}</span></div>` : ""}
           <div class="row"><span class="lbl">Ref 2</span><span>${ref2Display}</span></div>
+          ${skuDisplay ? `<div class="row"><span class="lbl">SKUs</span><span>${skuDisplay}</span></div>` : ""}
         </div>
         <!-- Zone 8 : barcode DPD (barCode28) + logo Predict -->
         <div class="middle-left-bottom">
