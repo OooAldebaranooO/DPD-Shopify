@@ -2,25 +2,6 @@ import QRCode from 'qrcode';
 import bwipjs from 'bwip-js';
 import { kv } from '@vercel/kv';
 
-function extractPdfText(base64: string): string {
-  try {
-    const buf = Buffer.from(base64, 'base64');
-    const str = buf.toString('latin1');
-    const parts: string[] = [];
-    const tjRegex = /\(([^)]*)\)\s*Tj/g;
-    const tjArrRegex = /\[([^\]]*)\]\s*TJ/g;
-    let m: RegExpExecArray | null;
-    while ((m = tjRegex.exec(str)) !== null) parts.push(m[1]);
-    while ((m = tjArrRegex.exec(str)) !== null) {
-      const inner = m[1].replace(/\(([^)]*)\)/g, (_: string, s: string) => s);
-      parts.push(inner);
-    }
-    return parts.join(' ');
-  } catch (e) {
-    return '';
-  }
-}
-
 // ── Types ────────────────────────────────────────────────────────────────────
 
 interface Config {
@@ -69,8 +50,8 @@ interface LabelData {
   sku:            string;
   title:          string;
   labelPdf:       string | null;
-  trackingNumber: string | null;
-  barCode:        string | null;
+  trackingNumber: string | null; // BarcodeId — zone 9
+  barCode:        string | null; // BarCode 28 chars — zone 12/13
   fromApi:        boolean;
 }
 
@@ -299,20 +280,12 @@ async function parseShipmentResponse(xml: string): Promise<{
   const errMatch = xml.match(/<ErrorMessage>([\s\S]*?)<\/ErrorMessage>/i);
   if (errMatch) return { trackingNumber: null, barCode: null, error: errMatch[1] };
 
+  // BarcodeId = numéro d'expédition affiché en zone 9
   const trackMatch = xml.match(/<BarcodeId>([\s\S]*?)<\/BarcodeId>/i)
                   || xml.match(/<parcelnumber>([\s\S]*?)<\/parcelnumber>/i);
-  const barMatch   = xml.match(/<BarCode>([\s\S]*?)<\/BarCode>/i);
 
-  // ── Logs debug ──
-  console.log("===XML TAGS===", xml.match(/<[a-zA-Z]+>/g)?.join(', '));
-  console.log("===XML FIRST 500===", xml.slice(0, 500));
-
-  const labelMatch = xml.match(/<label>([\s\S]*?)<\/label>/);
-  if (labelMatch?.[1]) {
-    const buf = Buffer.from(labelMatch[1].trim(), 'base64');
-    const str = buf.toString('latin1');
-    console.log("===PDF RAW===", JSON.stringify(str.slice(0, 2000)));
-  }
+  // BarCode = barcode complet 28 chars — zone 12/13
+  const barMatch = xml.match(/<BarCode>([\s\S]*?)<\/BarCode>/i);
 
   return {
     trackingNumber: trackMatch?.[1]?.trim() || null,
@@ -416,26 +389,55 @@ function buildMockLabels(
   }));
 }
 
-// ── Barcode & QR ──────────────────────────────────────────────────────────────
+// ── Génération codes ──────────────────────────────────────────────────────────
 
-async function generateBarcodeBase64(value: string): Promise<string> {
+// Zone 12 — Code 128 numéro de colis DPD (BarCode 28 chars)
+async function generateBarcode128(value: string): Promise<string> {
   try {
     const png = await bwipjs.toBuffer({
-      bcid: 'code128', text: value, scale: 3, height: 12,
-      includetext: true, textxalign: 'center', textsize: 9,
+      bcid: 'code128', text: value, scale: 3, height: 14,
+      includetext: true, textxalign: 'center', textsize: 8,
     });
     return `data:image/png;base64,${png.toString('base64')}`;
   } catch (e) {
-    console.error("Erreur barcode:", e);
+    console.error("Erreur barcode128:", e);
     return "";
   }
 }
 
-async function generateQrSvg(value: string): Promise<string> {
-  return QRCode.toString(value, {
-    type: 'svg', margin: 1, width: 60,
-    color: { dark: '#000000', light: '#ffffff' },
-  });
+// Zone 8 — Code 128 référence client (SKU/ref)
+async function generateRefBarcode128(value: string): Promise<string> {
+  try {
+    const png = await bwipjs.toBuffer({
+      bcid: 'code128', text: value, scale: 2, height: 8,
+      includetext: false,
+    });
+    return `data:image/png;base64,${png.toString('base64')}`;
+  } catch (e) {
+    console.error("Erreur refBarcode:", e);
+    return "";
+  }
+}
+
+// Zone 5 — Code Aztec 2D (comme sur l'étiquette DPD officielle)
+async function generateAztecPng(value: string): Promise<string> {
+  try {
+    const png = await bwipjs.toBuffer({
+      bcid: 'azteccode', text: value, scale: 3,
+    });
+    return `data:image/png;base64,${png.toString('base64')}`;
+  } catch (e) {
+    // Fallback QR code si aztec échoue
+    console.error("Erreur aztec, fallback QR:", e);
+    try {
+      const png = await bwipjs.toBuffer({
+        bcid: 'qrcode', text: value, scale: 3,
+      });
+      return `data:image/png;base64,${png.toString('base64')}`;
+    } catch (e2) {
+      return "";
+    }
+  }
 }
 
 // ── Render ────────────────────────────────────────────────────────────────────
@@ -444,21 +446,46 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
   const agencyCode = config.agencyCode || "038";
 
   const labelsWithData = await Promise.all(labels.map(async (label) => {
-    const barcodeValue  = label.barCode || label.trackingNumber
-      || `1038${Math.floor(Math.random()*9000+1000)}${Math.floor(Math.random()*9000+1000)}${Math.floor(Math.random()*90+10)}C`;
-    const displayNumber = label.trackingNumber || barcodeValue;
+    // Zone 12/13 — BarCode complet 28 chars (vrai en prod, mock en test)
+    const barCode28     = label.barCode
+      || `0067100${agencyCode}${Math.floor(Math.random()*9999999999).toString().padStart(10,'0')}327902`;
+
+    // Zone 9 — BarcodeId (numéro d'expédition affiché en gros)
+    const barcodeId     = label.trackingNumber || barCode28;
+
+    // Zone 10 — Code service selon doc DPD
     const serviceCode   = parseFloat(label.weight) <= 1 ? 'XD-B2C' : 'D-B2C';
-    const predictLogo   = `<img src="https://dpd-shopify-oken.vercel.app/dpd-predict-livraison.png" style="height:10px;vertical-align:middle" alt="Predict"/>`;
+    const serviceNum    = parseFloat(label.weight) <= 1 ? '328' : '327';
+
+    // Zone 9 — Code agence
     const agenceDisplay = agencyCode;
+
+    // Ref 1 et Ref 2
     const ref1Display   = label.sku || label.orderName.replace("#", "");
     const ref2Display   = `${(config.senderName2 || config.senderName || "EXPEDITEUR")!.toUpperCase().replace(/\s/g,"_")}_${label.orderName.replace("#","")}`;
 
-    const [barcodeDataUrl, qrSvg] = await Promise.all([
-      generateBarcodeBase64(barcodeValue),
-      generateQrSvg(barcodeValue),
+    // Génère tous les codes en parallèle
+    const [
+      barcode128Url,   // Zone 12
+      refBarcodeUrl,   // Zone 8
+      aztecUrl,        // Zone 5
+    ] = await Promise.all([
+      generateBarcode128(barCode28),
+      label.sku ? generateRefBarcode128(label.sku) : Promise.resolve(""),
+      generateAztecPng(barCode28),
     ]);
 
-    return { ...label, barcodeValue, displayNumber, serviceCode, agenceDisplay, predictLogo, ref1Display, ref2Display, barcodeDataUrl, qrSvg };
+    // Zone 13 — légende barcode formatée comme DPD
+    // Format: "0067 100 1077 0300 1101 99 136 902 N" (groupes de chars)
+    const barcode13Legend = barCode28.length >= 20
+      ? `${barCode28.slice(0,4)} ${barCode28.slice(4,7)} ${barCode28.slice(7,11)} ${barCode28.slice(11,15)} ${barCode28.slice(15,19)} ${barCode28.slice(19,21)} ${barCode28.slice(21,24)} ${barCode28.slice(24,27)} ${barCode28.slice(27)}`
+      : barCode28;
+
+    return {
+      ...label, barCode28, barcodeId, serviceCode, serviceNum,
+      agenceDisplay, ref1Display, ref2Display,
+      barcode128Url, refBarcodeUrl, aztecUrl, barcode13Legend,
+    };
   }));
 
   return `<!DOCTYPE html>
@@ -472,45 +499,65 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     body { width: 105mm; margin: 0; padding: 0; font-family: Arial, sans-serif; color: #000; background: #fff; }
     .label { width: 105mm; height: 148mm; display: flex; flex-direction: column; overflow: hidden; page-break-after: always; }
     .label:last-child { page-break-after: auto; }
-    .mock-banner { background: #fff3cd; border-bottom: 1px solid #ffc107; padding: 1mm 2mm; font-size: 5.5pt; text-align: center; }
-    .header { display: grid; grid-template-columns: 1fr 6mm 1fr; border-bottom: 1px solid #000; min-height: 22mm; position: relative; }
-    .header-dest { padding: 2mm; }
-    .dest-name { font-size: 10pt; font-weight: 700; line-height: 1.2; margin-bottom: 1.5mm; text-transform: uppercase; }
-    .dest-address { font-size: 7.5pt; line-height: 1.4; }
+    .mock-banner { background: #fff3cd; border-bottom: 1px solid #ffc107; padding: 0.8mm 2mm; font-size: 5pt; text-align: center; }
+
+    /* Zone 1+2+3 — Header */
+    .header { display: grid; grid-template-columns: 1fr 5mm 1fr; border-bottom: 1.5px solid #000; min-height: 20mm; position: relative; }
+    .header-dest { padding: 1.5mm 2mm; }
+    .dest-name { font-size: 9pt; font-weight: 700; line-height: 1.2; margin-bottom: 1mm; text-transform: uppercase; }
+    .dest-address { font-size: 7pt; line-height: 1.4; }
+    .dest-zip { font-size: 9pt; font-weight: 700; }
+    .dest-city { font-size: 9pt; font-weight: 700; }
     .header-separator { border-left: 1px solid #000; border-right: 1px solid #000; display: flex; align-items: center; justify-content: center; }
-    .header-separator span { writing-mode: vertical-rl; font-size: 7pt; letter-spacing: 1px; }
+    .header-separator span { writing-mode: vertical-rl; font-size: 6pt; letter-spacing: 1px; }
     .header-right { display: grid; grid-template-rows: 1fr 1fr; }
-    .header-right-top { border-bottom: 1px solid #000; padding: 1.5mm; font-size: 6pt; line-height: 1.3; }
-    .header-right-top .lbl { font-size: 5pt; color: #444; margin-bottom: 0.5mm; }
-    .header-right-bottom { padding: 1.5mm; font-size: 5.5pt; line-height: 1.3; }
-    .header-right-bottom .lbl { font-size: 5pt; color: #444; margin-bottom: 0.5mm; }
-    .dpd-logo { position: absolute; top: 2mm; right: 2mm; height: 32px; }
-    .middle { display: grid; grid-template-columns: 1fr auto; border-bottom: 1px solid #000; font-size: 6.5pt; }
-    .middle-left { padding: 1.5mm 2mm; border-right: 1px solid #000; }
-    .row { margin-bottom: 1mm; }
-    .row .lbl { font-size: 5.5pt; color: #444; display: block; }
+    .header-exp { border-bottom: 1px solid #000; padding: 1mm 1.5mm; font-size: 5.5pt; line-height: 1.3; }
+    .header-exp .lbl { font-size: 4.5pt; color: #444; }
+    .header-agence { padding: 1mm 1.5mm; font-size: 5pt; line-height: 1.3; }
+    .header-agence .lbl { font-size: 4.5pt; color: #444; }
+    .dpd-logo { position: absolute; top: 1.5mm; right: 1.5mm; height: 28px; }
+
+    /* Zone 4+5+8 — Middle */
+    .middle { display: grid; grid-template-columns: 1fr auto; border-bottom: 1px solid #000; font-size: 6pt; }
+    .middle-left { padding: 1mm 2mm; border-right: 1px solid #000; }
+    .row { margin-bottom: 0.8mm; line-height: 1.3; }
+    .row .lbl { font-size: 5pt; color: #444; display: block; }
+    .ref-barcode { margin: 1mm 0 0.5mm; }
+    .ref-barcode img { max-width: 100%; height: 8mm; }
+    .predict-logo { margin-top: 1mm; text-align: right; }
     .middle-right { display: grid; grid-template-columns: auto auto; }
     .colis-poids { display: flex; flex-direction: column; border-right: 1px solid #000; }
-    .colis-badge { padding: 1.5mm 3mm; border-bottom: 1px solid #000; flex: 1; }
-    .colis-badge .lbl { font-size: 5pt; color: #444; }
-    .colis-badge strong { font-size: 13pt; font-weight: 700; }
-    .poids-badge { padding: 1.5mm 3mm; flex: 1; }
-    .poids-badge .lbl { font-size: 5pt; color: #444; }
-    .poids-badge strong { font-size: 13pt; font-weight: 700; }
-    .qr-block { padding: 1.5mm; display: flex; align-items: center; justify-content: center; width: 27.65mm; height: 27.65mm; }
-    .qr-block svg { width: 100%; height: 100%; }
-    .tracking { display: grid; grid-template-columns: 1fr auto; padding: 1mm 2mm; border-bottom: 1px solid #000; align-items: center; }
-    .tracking-number { font-size: 14pt; font-weight: 700; letter-spacing: 0.5px; }
-    .service-code { text-align: right; }
-    .service-code .code { font-size: 10pt; font-weight: 700; }
-    .service-code .lbl { font-size: 5pt; color: #444; }
-    .footer-codes { display: grid; grid-template-columns: auto 1fr auto; align-items: center; padding: 1mm 2mm; border-bottom: 1px solid #000; gap: 2mm; }
-    .depot-code { background: #000 !important; color: #fff !important; font-size: 13pt; font-weight: 700; padding: 0.5mm 3mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .routing-code { font-size: 10pt; font-weight: 700; text-align: center; word-break: break-all; }
-    .sort-code { background: #000 !important; color: #fff !important; font-size: 13pt; font-weight: 700; padding: 0.5mm 3mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .barcode-bottom { padding: 1.5mm 2mm 1mm; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-    .barcode-img { width: 90%; height: auto; image-rendering: pixelated; }
-    .barcode-text { font-size: 5pt; color: #444; margin-top: 1mm; text-align: center; }
+    .colis-badge { padding: 1mm 2.5mm; border-bottom: 1px solid #000; flex: 1; }
+    .colis-badge .lbl { font-size: 4.5pt; color: #444; }
+    .colis-badge strong { font-size: 12pt; font-weight: 700; }
+    .poids-badge { padding: 1mm 2.5mm; flex: 1; }
+    .poids-badge .lbl { font-size: 4.5pt; color: #444; }
+    .poids-badge strong { font-size: 12pt; font-weight: 700; }
+    /* Zone 5 — Aztec */
+    .aztec-block { padding: 1mm; display: flex; align-items: center; justify-content: center; width: 26mm; }
+    .aztec-block img { width: 100%; height: auto; }
+
+    /* Zone 9+10 — Tracking */
+    .tracking { display: grid; grid-template-columns: 1fr auto; padding: 0.8mm 2mm; border-bottom: 1px solid #000; align-items: center; }
+    .tracking-left { }
+    .track-label { font-size: 4.5pt; color: #444; }
+    .tracking-number { font-size: 16pt; font-weight: 700; letter-spacing: 1px; line-height: 1; }
+    .service-block { text-align: right; }
+    .service-code { font-size: 9pt; font-weight: 700; }
+    .service-lbl { font-size: 4.5pt; color: #444; }
+
+    /* Zone 11 — Plan de transport (indisponible sans PDF) */
+    .transport { display: grid; grid-template-columns: auto 1fr auto; align-items: center; padding: 0.8mm 2mm; border-bottom: 1px solid #000; gap: 2mm; min-height: 8mm; }
+    .depot { background: #000 !important; color: #fff !important; font-size: 14pt; font-weight: 900; padding: 0.5mm 3mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .routing { font-size: 7pt; font-weight: 700; text-align: center; color: #888; font-style: italic; }
+    .sort { background: #000 !important; color: #fff !important; font-size: 11pt; font-weight: 700; padding: 0.5mm 2mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+    /* Zone 12+13 — Barcode final */
+    .barcode-section { padding: 1mm 2mm 0.5mm; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .barcode-img { width: 92%; height: auto; image-rendering: pixelated; }
+    .barcode-legend { font-size: 5pt; color: #444; margin-top: 0.5mm; text-align: center; letter-spacing: 0.5px; }
+    .barcode-meta { font-size: 4pt; color: #888; margin-top: 0.5mm; text-align: center; }
+
     @media print { * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } }
   </style>
 </head>
@@ -518,24 +565,31 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
 ${labelsWithData.map(({
   orderName, index, total, destName, destCompany, destAddress, destAddress2,
   destZip, destCity, destPhone, weight,
-  barcodeValue, displayNumber, serviceCode, agenceDisplay, predictLogo,
-  ref1Display, ref2Display, barcodeDataUrl, qrSvg
+  barCode28, barcodeId, serviceCode, serviceNum,
+  agenceDisplay, ref1Display, ref2Display,
+  barcode128Url, refBarcodeUrl, aztecUrl, barcode13Legend,
 }) => `  <div class="label">
-    ${isMock ? `<div class="mock-banner">&#9888;&#65039; Apercu - Mode test (credentials DPD manquants)</div>` : ""}
+    ${isMock ? `<div class="mock-banner">&#9888; Apercu - Mode test (credentials DPD manquants)</div>` : ""}
+
+    <!-- Zone 1+2+3 : Destinataire / Expediteur / Agence -->
     <div class="header">
       <div class="header-dest">
-        <div class="dest-name">${destCompany ? `${destCompany}<br/><span style="font-size:8pt;font-weight:400">${destName}</span>` : destName}</div>
-        <div class="dest-address">${destAddress}${destAddress2 ? `<br>${destAddress2}` : ""}<br><strong>${destZip}</strong><br><strong style="font-size:9pt">${destCity.toUpperCase()}</strong></div>
+        <div class="dest-name">${destCompany ? `${destCompany}<br/><span style="font-size:7pt;font-weight:400">${destName}</span>` : destName}</div>
+        <div class="dest-address">
+          ${destAddress}${destAddress2 ? `<br>${destAddress2}` : ""}<br>
+          <span class="dest-zip">F-${destZip}</span><br>
+          <span class="dest-city">${destCity.toUpperCase()}</span>
+        </div>
       </div>
       <div class="header-separator"><span>Destinataire</span></div>
       <div class="header-right">
-        <div class="header-right-top">
+        <div class="header-exp">
           <div class="lbl">Expediteur</div>
           <strong>${config.senderName || "EXPEDITEUR"}</strong><br>
           ${config.senderAddress || ""}<br>
           ${config.senderZip || ""} ${config.senderCity || ""}
         </div>
-        <div class="header-right-bottom">
+        <div class="header-agence">
           <div class="lbl">DPD-Etablissement ${agenceDisplay}</div>
           ${config.senderAddress || ""}<br>
           ${config.senderZip || ""} ${config.senderCity || ""}
@@ -543,34 +597,56 @@ ${labelsWithData.map(({
       </div>
       <img src="https://dpd-shopify-oken.vercel.app/dpd-logo.png" alt="DPD" class="dpd-logo"/>
     </div>
+
+    <!-- Zone 4+5+8 : Refs / Aztec / Ref barcode -->
     <div class="middle">
       <div class="middle-left">
         <div class="row"><span class="lbl">Contact</span><span>Tel ${destPhone || "-"}</span></div>
         <div class="row"><span class="lbl">Ref 1</span><span>${ref1Display}</span></div>
+        ${refBarcodeUrl ? `<div class="ref-barcode"><img src="${refBarcodeUrl}" alt="ref barcode"/></div>` : ""}
         <div class="row"><span class="lbl">Ref 2</span><span>${ref2Display}</span></div>
-        <div class="row" style="text-align:right"><span>${predictLogo}</span></div>
+        <div class="predict-logo">
+          <img src="https://dpd-shopify-oken.vercel.app/dpd-predict-livraison.png" style="height:9px" alt="Predict"/>
+        </div>
       </div>
       <div class="middle-right">
         <div class="colis-poids">
           <div class="colis-badge"><div class="lbl">Colis</div><strong>${index}/${total}</strong></div>
           <div class="poids-badge"><div class="lbl">Poids</div><strong>${weight} kg</strong></div>
         </div>
-        <div class="qr-block">${qrSvg}</div>
+        <!-- Zone 5 — Aztec code -->
+        <div class="aztec-block">
+          ${aztecUrl ? `<img src="${aztecUrl}" alt="Aztec"/>` : ""}
+        </div>
       </div>
     </div>
+
+    <!-- Zone 9+10 : Numéro d'expédition + service -->
     <div class="tracking">
-      <div class="tracking-number">${displayNumber}</div>
-      <div class="service-code"><div class="code">${serviceCode}</div><div class="lbl">Service</div></div>
+      <div class="tracking-left">
+        <div class="track-label">Track</div>
+        <div class="tracking-number">${barcodeId}</div>
+      </div>
+      <div class="service-block">
+        <div class="service-code">${serviceCode}</div>
+        <div class="service-lbl">Service: ${serviceNum}</div>
+      </div>
     </div>
-    <div class="footer-codes">
-      <div class="depot-code">${agenceDisplay}</div>
-      <div class="routing-code">${barcodeValue}</div>
-      <div class="sort-code">${agenceDisplay}SA</div>
+
+    <!-- Zone 11 : Plan de transport (indisponible via API — nécessite PDF) -->
+    <div class="transport">
+      <div class="depot">${agenceDisplay}</div>
+      <div class="routing" style="font-size:5pt">Plan de transport<br>disponible apres whitelisting IP</div>
+      <div class="sort">${agenceDisplay}SA</div>
     </div>
-    <div class="barcode-bottom">
-      ${barcodeDataUrl ? `<img class="barcode-img" src="${barcodeDataUrl}" alt="Code-barres"/>` : `<span style="font-size:7pt;color:#999">Barcode indisponible</span>`}
-      <div class="barcode-text">${new Date().toLocaleDateString("fr-FR")} ${new Date().toLocaleTimeString("fr-FR")} &middot; Commande : ${orderName} &middot; Colis : ${index}/${total}</div>
+
+    <!-- Zone 12+13 : Code 128 + légende -->
+    <div class="barcode-section">
+      ${barcode128Url ? `<img class="barcode-img" src="${barcode128Url}" alt="Code-barres DPD"/>` : `<span style="font-size:7pt;color:#999">Barcode indisponible</span>`}
+      <div class="barcode-legend">${barcode13Legend}</div>
+      <div class="barcode-meta">${new Date().toLocaleDateString("fr-FR")} ${new Date().toLocaleTimeString("fr-FR")} &middot; ${orderName} &middot; Colis ${index}/${total}</div>
     </div>
+
   </div>`).join("\n")}
 </body>
 </html>`;
