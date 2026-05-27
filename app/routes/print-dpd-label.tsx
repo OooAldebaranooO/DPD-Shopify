@@ -410,8 +410,8 @@ ${labelsWithData.map(({
         <div class="middle-left-refs">
           <div class="row"><span class="lbl">Contact</span><span>Tel ${destPhone || "-"}</span></div>
           <div class="row"><span class="lbl">Ref 1</span><span>${ref1Display}</span></div>
-          ${skuDisplay ? `<div class="row"><span class="lbl">SKUs</span><span>${skuDisplay}</span></div>` : ""}
           <div class="row"><span class="lbl">Ref 2</span><span>${ref2Display}</span></div>
+          ${skuDisplay ? `<div class="row"><span class="lbl">SKUs</span><span>${skuDisplay}</span></div>` : ""}
         </div>
         <!-- Zone 8 : barcode DPD (barCode28) + logo Predict -->
         <div class="middle-left-bottom">
