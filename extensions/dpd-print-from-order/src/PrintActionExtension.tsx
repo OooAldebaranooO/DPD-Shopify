@@ -6,8 +6,6 @@ export default function () {
   render(<Extension />, document.body);
 }
 
-// ── Types ────────────────────────────────────────────────────────────────────
-
 interface LineItem {
   id:     string;
   title:  string;
@@ -26,20 +24,18 @@ interface Colis {
   items: ColisItem[];
 }
 
-// ── Component ────────────────────────────────────────────────────────────────
-
 function Extension() {
   const { data } = shopify;
 
-  const [orderName, setOrderName] = useState<string | null>(null);
-  const [lines, setLines]         = useState<LineItem[]>([]);
-  const [colis, setColis]         = useState<Colis[]>([]);
-  const [printUrl, setPrintUrl]   = useState<string | null>(null);
-  const [error, setError]         = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [addr, setAddr]           = useState<any>(null);
+  const [orderName, setOrderName]   = useState<string | null>(null);
+  const [shopifyOrderId, setShopifyOrderId] = useState<string | null>(null);
+  const [lines, setLines]           = useState<LineItem[]>([]);
+  const [colis, setColis]           = useState<Colis[]>([]);
+  const [printUrl, setPrintUrl]     = useState<string | null>(null);
+  const [error, setError]           = useState<string | null>(null);
+  const [isLoading, setIsLoading]   = useState(true);
+  const [addr, setAddr]             = useState<any>(null);
 
-  // ── Chargement commande ──
   useEffect(() => {
     async function loadOrder() {
       try {
@@ -79,6 +75,9 @@ function Extension() {
           setError("Impossible de charger la commande."); setIsLoading(false); return;
         }
 
+        // ID numérique Shopify (ex: 13735327170900) extrait de gid://shopify/Order/13735327170900
+        const numericId = order.id.split("/").pop() || "";
+
         const loadedLines: LineItem[] = (order.lineItems?.edges || [])
           .filter((e: any) => (e?.node?.currentQuantity || 0) > 0)
           .map((e: any, i: number) => {
@@ -94,23 +93,14 @@ function Extension() {
                 default:          weightKg = w.value;
               }
             }
-            return {
-              id:     `item-${i}`,
-              title:  node?.title || "",
-              sku:    node?.variant?.sku || "",
-              qty:    node?.currentQuantity || 1,
-              weight: weightKg,
-            };
+            return { id: `item-${i}`, title: node?.title || "", sku: node?.variant?.sku || "", qty: node?.currentQuantity || 1, weight: weightKg };
           });
 
         setOrderName(order.name);
+        setShopifyOrderId(numericId);
         setAddr(order.shippingAddress);
         setLines(loadedLines);
-        // Par défaut : 1 colis avec toute la quantité de chaque produit
-        setColis([{
-          id: 'colis-1',
-          items: loadedLines.map((l: LineItem) => ({ itemId: l.id, qty: l.qty })),
-        }]);
+        setColis([{ id: 'colis-1', items: loadedLines.map((l: LineItem) => ({ itemId: l.id, qty: l.qty })) }]);
         setIsLoading(false);
       } catch (e) {
         console.error(e);
@@ -121,7 +111,6 @@ function Extension() {
     loadOrder();
   }, [data]);
 
-  // ── Génère l'URL à chaque changement de colis ──
   useEffect(() => {
     if (!addr || colis.length === 0 || lines.length === 0) return;
 
@@ -152,6 +141,7 @@ function Extension() {
 
     const url = `https://dpd-shopify-oken.vercel.app/print-dpd-label` +
       `?orderName=${encodeURIComponent(orderName ?? "")}` +
+      `&shopifyOrderId=${encodeURIComponent(shopifyOrderId ?? "")}` +
       `&count=${count}` +
       `&destName=${encodeURIComponent(destName)}` +
       `&destCompany=${encodeURIComponent(destCompany)}` +
@@ -165,14 +155,10 @@ function Extension() {
       `&titles=${encodeURIComponent(skusParam)}`;
 
     setPrintUrl(url);
-  }, [colis, lines, addr, orderName]);
+  }, [colis, lines, addr, orderName, shopifyOrderId]);
 
-  // ── Actions ──
   function addColis() {
-    setColis(prev => [...prev, {
-      id: `colis-${Date.now()}`,
-      items: lines.map(l => ({ itemId: l.id, qty: 0 })),
-    }]);
+    setColis(prev => [...prev, { id: `colis-${Date.now()}`, items: lines.map(l => ({ itemId: l.id, qty: 0 })) }]);
   }
 
   function removeColis(colisId: string) {
@@ -186,14 +172,11 @@ function Extension() {
     setColis(prev => prev.map(c => {
       if (c.id !== colisId) return c;
       const existing = c.items.find(ci => ci.itemId === itemId);
-      if (existing) {
-        return { ...c, items: c.items.map(ci => ci.itemId === itemId ? { ...ci, qty: clamped } : ci) };
-      }
+      if (existing) return { ...c, items: c.items.map(ci => ci.itemId === itemId ? { ...ci, qty: clamped } : ci) };
       return { ...c, items: [...c.items, { itemId, qty: clamped }] };
     }));
   }
 
-  // ── Calcul des qtés assignées par produit ──
   function assignedQty(itemId: string): number {
     return colis.reduce((acc, c) => {
       const ci = c.items.find(i => i.itemId === itemId);
@@ -222,7 +205,6 @@ function Extension() {
         ) : (
           <s-stack direction="block" gap="base">
 
-            {/* Résumé */}
             <s-stack direction="inline" gap="base">
               <s-box padding="base" background="surface-secondary">
                 <s-stack direction="block" gap="none">
@@ -238,22 +220,18 @@ function Extension() {
               </s-box>
             </s-stack>
 
-            {/* Alerte produits non assignés */}
             {unassignedLines.length > 0 && (
               <s-banner tone="warning">
                 {unassignedLines.map(l => {
                   const missing = l.qty - assignedQty(l.id);
-                  return `${l.sku || l.title} : ${missing} unité(s) non assignée(s)`;
+                  return `⚠️ ${l.sku || l.title} : ${missing} unité(s) non assignée(s)`;
                 }).join(" | ")}
               </s-banner>
             )}
 
-            {/* Liste des colis */}
             {colis.map((c, colisIndex) => (
               <s-box padding="base" background="surface-secondary">
                 <s-stack direction="block" gap="small">
-
-                  {/* Header colis */}
                   <s-stack direction="inline" gap="base">
                     <s-text><strong>📦 Colis {colisIndex + 1}/{colis.length}</strong></s-text>
                     {colis.length > 1 && (
@@ -263,13 +241,11 @@ function Extension() {
                     )}
                   </s-stack>
 
-                  {/* Produits avec champ quantité */}
                   {lines.map(line => {
-                    const ci        = c.items.find(i => i.itemId === line.id);
-                    const current   = ci?.qty ?? 0;
+                    const ci      = c.items.find(i => i.itemId === line.id);
+                    const current = ci?.qty ?? 0;
                     const remaining = line.qty - assignedQty(line.id);
-                    const label     = line.sku || line.title;
-
+                    const label   = line.sku || line.title;
                     return (
                       <s-stack direction="block" gap="none">
                         <s-stack direction="inline" gap="base">
@@ -286,12 +262,10 @@ function Extension() {
                       </s-stack>
                     );
                   })}
-
                 </s-stack>
               </s-box>
             ))}
 
-            {/* Bouton ajouter colis */}
             <s-button onClick={addColis}>+ Ajouter un colis</s-button>
 
           </s-stack>

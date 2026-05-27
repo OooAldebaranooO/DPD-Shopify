@@ -1,8 +1,6 @@
 import bwipjs from 'bwip-js';
 import { kv } from '@vercel/kv';
 
-// ── Types ────────────────────────────────────────────────────────────────────
-
 interface Config {
   login:          string | undefined;
   password:       string | undefined;
@@ -18,40 +16,37 @@ interface Config {
 
 interface OrderItem { weight: number; sku: string; title: string; }
 interface OrderPayload {
-  orderName: string; destName: string; destCompany: string;
+  orderName: string; shopifyOrderId: string; destName: string; destCompany: string;
   destAddress: string; destAddress2: string; destZip: string;
   destCity: string; destPhone: string; items: OrderItem[];
 }
 interface LabelData {
-  orderName: string; index: number; total: number;
+  orderName: string; shopifyOrderId: string; index: number; total: number;
   destName: string; destCompany: string; destAddress: string; destAddress2: string;
   destZip: string; destCity: string; destPhone: string;
   weight: string; sku: string; title: string;
-  labelPdf: string | null;
+  labelPdf:       string | null;
   trackingNumber: string | null; // BarcodeId DPD — zone 9 Track
-  barCode: string | null;        // BarCode 28 chars — zone 12/13
+  barCode:        string | null; // BarCode 28 chars — zone 5/12/13
   fromApi: boolean;
 }
 interface SoapParams {
   destName: string; destCompany: string; destAddress: string; destAddress2: string;
   destZip: string; destCity: string; destPhone: string;
-  orderName: string; ref1: string; ref2: string; weight: string; shippingDate: string;
+  orderName: string; shopifyOrderId: string; ref1: string; ref2: string; weight: string; shippingDate: string;
 }
 interface OrderParams {
-  orderName: string; count: number; destName: string; destCompany: string;
-  destAddress: string; destAddress2: string; destZip: string; destCity: string;
-  destPhone: string; weights: string; skusParam: string; titlesParam: string;
+  orderName: string; shopifyOrderId: string; count: number;
+  destName: string; destCompany: string; destAddress: string; destAddress2: string;
+  destZip: string; destCity: string; destPhone: string;
+  weights: string; skusParam: string; titlesParam: string;
 }
-
-// ── Action ───────────────────────────────────────────────────────────────────
 
 export async function action({ request }: { request: Request }) {
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, OPTIONS", "Access-Control-Allow-Headers": "*" } });
   }
 }
-
-// ── Loader ───────────────────────────────────────────────────────────────────
 
 export async function loader({ request }: { request: Request }) {
   const url   = new URL(request.url);
@@ -74,7 +69,7 @@ export async function loader({ request }: { request: Request }) {
         for (const order of orders) {
           const total = order.items.length;
           order.items.forEach((item, i) => labels.push({
-            orderName: order.orderName, index: i + 1, total,
+            orderName: order.orderName, shopifyOrderId: order.shopifyOrderId || "", index: i + 1, total,
             destName: order.destName, destCompany: order.destCompany,
             destAddress: order.destAddress, destAddress2: order.destAddress2,
             destZip: order.destZip, destCity: order.destCity, destPhone: order.destPhone,
@@ -85,35 +80,41 @@ export async function loader({ request }: { request: Request }) {
       }
     } catch (e) { console.error("KV get error:", e); }
   } else {
-    const orderName    = url.searchParams.get("orderName")    || "Commande";
-    const count        = Number(url.searchParams.get("count") || "1");
-    const destName     = url.searchParams.get("destName")     || "NOM DESTINATAIRE";
-    const destAddress  = url.searchParams.get("destAddress")  || "";
-    const destAddress2 = url.searchParams.get("destAddress2") || "";
-    const destCompany  = url.searchParams.get("destCompany")  || "";
-    const destZip      = url.searchParams.get("destZip")      || "";
-    const destCity     = url.searchParams.get("destCity")     || "";
-    const destPhone    = url.searchParams.get("destPhone")    || "";
-    const weights      = url.searchParams.get("weights")      || "1";
-    const skusParam    = url.searchParams.get("skus")         || "";
-    const titlesParam  = url.searchParams.get("titles")       || "";
+    const orderName      = url.searchParams.get("orderName")      || "Commande";
+    const shopifyOrderId = url.searchParams.get("shopifyOrderId") || "";
+    const count          = Number(url.searchParams.get("count")   || "1");
+    const destName       = url.searchParams.get("destName")       || "NOM DESTINATAIRE";
+    const destAddress    = url.searchParams.get("destAddress")    || "";
+    const destAddress2   = url.searchParams.get("destAddress2")   || "";
+    const destCompany    = url.searchParams.get("destCompany")    || "";
+    const destZip        = url.searchParams.get("destZip")        || "";
+    const destCity       = url.searchParams.get("destCity")       || "";
+    const destPhone      = url.searchParams.get("destPhone")      || "";
+    const weights        = url.searchParams.get("weights")        || "1";
+    const skusParam      = url.searchParams.get("skus")           || "";
+    const titlesParam    = url.searchParams.get("titles")         || "";
+
     if (!isMock) {
-      try { labels = await callDpdEprint(config, { orderName, count, destName, destCompany, destAddress, destAddress2, destZip, destCity, destPhone, weights, skusParam, titlesParam }); }
-      catch (e) { console.error("Erreur EPrint:", (e as Error).message); labels = buildMockLabels(count, orderName, destName, destCompany, destAddress, destAddress2, destZip, destCity, destPhone, weights, skusParam, titlesParam); }
+      try {
+        labels = await callDpdEprint(config, { orderName, shopifyOrderId, count, destName, destCompany, destAddress, destAddress2, destZip, destCity, destPhone, weights, skusParam, titlesParam });
+      } catch (e) {
+        console.error("Erreur EPrint:", (e as Error).message);
+        labels = buildMockLabels(orderName, shopifyOrderId, count, destName, destCompany, destAddress, destAddress2, destZip, destCity, destPhone, weights, skusParam, titlesParam);
+      }
     } else {
-      labels = buildMockLabels(count, orderName, destName, destCompany, destAddress, destAddress2, destZip, destCity, destPhone, weights, skusParam, titlesParam);
+      labels = buildMockLabels(orderName, shopifyOrderId, count, destName, destCompany, destAddress, destAddress2, destZip, destCity, destPhone, weights, skusParam, titlesParam);
     }
   }
+
   if (token && labels.length > 0 && !isMock) {
     try { labels = await callDpdEprintBulk(config, labels); }
     catch (e) { console.error("Erreur EPrint bulk:", (e as Error).message); }
   }
+
   return new Response(await renderLabels(labels, config, isMock), {
     headers: { "Content-Type": "text/html; charset=utf-8", "Access-Control-Allow-Origin": "*", "X-Frame-Options": "ALLOWALL", "Content-Security-Policy": "frame-ancestors *" },
   });
 }
-
-// ── SOAP ──────────────────────────────────────────────────────────────────────
 
 async function soapRequest(config: Config, p: SoapParams): Promise<string> {
   const WS_URL = "https://e-station.cargonet.software/dpd-eprintwebservice/eprintwebservice.asmx";
@@ -171,8 +172,8 @@ async function callDpdEprint(config: Config, order: OrderParams): Promise<LabelD
   const weightsList  = String(order.weights || "1").split(",").map(w => parseFloat(w) || 0);
   const skusList     = String(order.skusParam || "").split("|").map(s => decodeURIComponent(s));
   const titlesList   = String(order.titlesParam || "").split("|").map(s => decodeURIComponent(s));
-  // 🔧 Ref2 = senderName2 si défini, sinon senderName — sans duplication
-  const ref2Base     = (config.senderName2 || config.senderName || "EXPEDITEUR")!.toUpperCase().replace(/\s/g, "_");
+  // Ref2 = senderName2_commande (ex: LIVEDECO_95693)
+  const ref2Base     = (config.senderName2 || "LIVEDECO")!.toUpperCase().replace(/\s/g, "_");
   const labels: LabelData[] = [];
   for (let i = 1; i <= order.count; i++) {
     const itemWeight = Math.max(0.01, weightsList[i - 1] ?? weightsList[0] ?? 1).toFixed(2);
@@ -182,24 +183,34 @@ async function callDpdEprint(config: Config, order: OrderParams): Promise<LabelD
       destName: order.destName, destCompany: order.destCompany,
       destAddress: order.destAddress, destAddress2: order.destAddress2,
       destZip: order.destZip, destCity: order.destCity, destPhone: order.destPhone,
-      orderName: order.orderName,
-      ref1: itemSku || order.orderName,
+      orderName: order.orderName, shopifyOrderId: order.shopifyOrderId,
+      // Ref1 envoyée à DPD = shopifyOrderId (ID numérique)
+      ref1: order.shopifyOrderId || order.orderName,
+      // Ref2 = LIVEDECO_95693
       ref2: `${ref2Base}_${order.orderName.replace("#", "")}`,
       weight: itemWeight, shippingDate,
     });
     const { trackingNumber, barCode, error } = await parseShipmentResponse(xml);
     if (error) throw new Error(error);
-    labels.push({ orderName: order.orderName, index: i, total: order.count, destName: order.destName, destCompany: order.destCompany, destAddress: order.destAddress, destAddress2: order.destAddress2, destZip: order.destZip, destCity: order.destCity, destPhone: order.destPhone, weight: itemWeight, sku: itemSku, title: itemTitle, labelPdf: null, trackingNumber, barCode, fromApi: true });
+    labels.push({ orderName: order.orderName, shopifyOrderId: order.shopifyOrderId, index: i, total: order.count, destName: order.destName, destCompany: order.destCompany, destAddress: order.destAddress, destAddress2: order.destAddress2, destZip: order.destZip, destCity: order.destCity, destPhone: order.destPhone, weight: itemWeight, sku: itemSku, title: itemTitle, labelPdf: null, trackingNumber, barCode, fromApi: true });
   }
   return labels;
 }
 
 async function callDpdEprintBulk(config: Config, labels: LabelData[]): Promise<LabelData[]> {
   const shippingDate = new Date().toLocaleDateString("fr-FR").split("/").join(".");
-  const ref2Base     = (config.senderName2 || config.senderName || "EXPEDITEUR")!.toUpperCase().replace(/\s/g, "_");
+  const ref2Base     = (config.senderName2 || "LIVEDECO")!.toUpperCase().replace(/\s/g, "_");
   return Promise.all(labels.map(async (label) => {
     try {
-      const xml = await soapRequest(config, { destName: label.destName, destCompany: label.destCompany, destAddress: label.destAddress, destAddress2: label.destAddress2, destZip: label.destZip, destCity: label.destCity, destPhone: label.destPhone, orderName: label.orderName, ref1: label.sku || label.orderName, ref2: `${ref2Base}_${label.orderName.replace("#", "")}`, weight: label.weight, shippingDate });
+      const xml = await soapRequest(config, {
+        destName: label.destName, destCompany: label.destCompany,
+        destAddress: label.destAddress, destAddress2: label.destAddress2,
+        destZip: label.destZip, destCity: label.destCity, destPhone: label.destPhone,
+        orderName: label.orderName, shopifyOrderId: label.shopifyOrderId,
+        ref1: label.shopifyOrderId || label.orderName,
+        ref2: `${ref2Base}_${label.orderName.replace("#", "")}`,
+        weight: label.weight, shippingDate,
+      });
       const { trackingNumber, barCode, error } = await parseShipmentResponse(xml);
       if (error) { console.error("Erreur DPD pour", label.orderName, ":", error); return label; }
       return { ...label, labelPdf: null, trackingNumber, barCode, fromApi: true };
@@ -207,20 +218,16 @@ async function callDpdEprintBulk(config: Config, labels: LabelData[]): Promise<L
   }));
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 function escapeXml(str: string): string {
   return String(str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 }
 
-function buildMockLabels(count: number, orderName: string, destName: string, destCompany: string, destAddress: string, destAddress2: string, destZip: string, destCity: string, destPhone: string, weights: string, skusParam: string, titlesParam: string): LabelData[] {
+function buildMockLabels(orderName: string, shopifyOrderId: string, count: number, destName: string, destCompany: string, destAddress: string, destAddress2: string, destZip: string, destCity: string, destPhone: string, weights: string, skusParam: string, titlesParam: string): LabelData[] {
   const weightsList = String(weights || "1").split(",").map(w => parseFloat(w) || 0);
   const skusList    = String(skusParam  || "").split("|").map(s => decodeURIComponent(s));
   const titlesList  = String(titlesParam|| "").split("|").map(s => decodeURIComponent(s));
-  return Array.from({ length: count }, (_, i) => ({ orderName, index: i + 1, total: count, destName, destCompany, destAddress, destAddress2, destZip, destCity, destPhone, weight: Math.max(0.01, weightsList[i] ?? weightsList[0] ?? 1).toFixed(2), sku: skusList[i] ?? "", title: titlesList[i] ?? "", labelPdf: null, trackingNumber: null, barCode: null, fromApi: false }));
+  return Array.from({ length: count }, (_, i) => ({ orderName, shopifyOrderId, index: i + 1, total: count, destName, destCompany, destAddress, destAddress2, destZip, destCity, destPhone, weight: Math.max(0.01, weightsList[i] ?? weightsList[0] ?? 1).toFixed(2), sku: skusList[i] ?? "", title: titlesList[i] ?? "", labelPdf: null, trackingNumber: null, barCode: null, fromApi: false }));
 }
-
-// ── Génération codes ──────────────────────────────────────────────────────────
 
 async function generateBarcode128(value: string): Promise<string> {
   if (!value) return "";
@@ -251,39 +258,37 @@ async function generateAztecPng(value: string): Promise<string> {
   }
 }
 
-// ── Render ────────────────────────────────────────────────────────────────────
-
 async function renderLabels(labels: LabelData[], config: Config, isMock: boolean): Promise<string> {
   const agencyCode = config.agencyCode || "038";
-  // 🔧 Ref2 base : senderName2 si défini, sinon senderName — sans duplication
-  const ref2Base   = (config.senderName2 || config.senderName || "EXPEDITEUR")!.toUpperCase().replace(/\s/g, "_");
+  const ref2Base   = (config.senderName2 || "LIVEDECO")!.toUpperCase().replace(/\s/g, "_");
 
   const labelsWithData = await Promise.all(labels.map(async (label) => {
-    // Zone 9 Track = BarcodeId DPD (ex: 13735327170900) — null si pas encore d'IP whitelist
+    // Zone 9 Track = BarcodeId DPD (ex: 13735327170900)
     const trackingNumber = label.trackingNumber;
-    // Zone 12/13 = BarCode 28 chars — null si pas encore d'IP whitelist
+    // Zone 5/12/13 = BarCode 28 chars DPD
     const barCode28      = label.barCode || "";
     // Zone 10
     const serviceCode    = parseFloat(label.weight) <= 1 ? 'XD-B2C' : 'D-B2C';
     const serviceNum     = parseFloat(label.weight) <= 1 ? '328' : '327';
-    // Ref 1 = Numéro de cmde
-    const ref1Display    = label.orderName;
-    // Ref 2 = senderName2
-    const ref2Display   = label.orderName.replace("#", "");
+    // Ref 1 = ID numérique Shopify (ex: 13735327170900)
+    const ref1Display    = label.shopifyOrderId || label.orderName;
+    // Ref 2 = LIVEDECO_95693
+    const ref2Display    = `${ref2Base}_${label.orderName.replace("#", "")}`;
+    // SKUs
+    const skuDisplay     = label.sku || "";
 
-    // Génère les codes seulement si on a les données réelles
     const [barcode128Url, refBarcodeUrl, aztecUrl] = await Promise.all([
-      generateBarcode128(barCode28),                              // Zone 12 — BarCode DPD
-      generateRefBarcode128(label.sku || label.orderName.replace("#","")), // Zone 8 — ref client
-      generateAztecPng(barCode28),                               // Zone 5 — Aztec DPD
+      generateBarcode128(barCode28),       // Zone 12 — grand barcode DPD en bas
+      generateRefBarcode128(skuDisplay),   // Zone 8 — petit barcode SKU
+      generateAztecPng(barCode28),         // Zone 5 — Aztec DPD
     ]);
 
-    // Zone 13 — légende barcode formatée
+    // Zone 13 — légende formatée
     const barcode13Legend = barCode28.length >= 20
       ? `${barCode28.slice(0,4)} ${barCode28.slice(4,7)} ${barCode28.slice(7,11)} ${barCode28.slice(11,15)} ${barCode28.slice(15,19)} ${barCode28.slice(19,21)} ${barCode28.slice(21,24)} ${barCode28.slice(24,27)} ${barCode28.slice(27)}`
       : "";
 
-    return { ...label, trackingNumber, barCode28, serviceCode, serviceNum, ref1Display, ref2Display, barcode128Url, refBarcodeUrl, aztecUrl, barcode13Legend };
+    return { ...label, trackingNumber, barCode28, serviceCode, serviceNum, ref1Display, ref2Display, skuDisplay, barcode128Url, refBarcodeUrl, aztecUrl, barcode13Legend };
   }));
 
   return `<!DOCTYPE html>
@@ -298,8 +303,6 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     .label { width: 105mm; height: 148mm; display: flex; flex-direction: column; overflow: hidden; page-break-after: always; }
     .label:last-child { page-break-after: auto; }
     .mock-banner { background: #fff3cd; border-bottom: 1px solid #ffc107; padding: 0.8mm 2mm; font-size: 5pt; text-align: center; }
-
-    /* Zone 1+2+3 */
     .header { display: grid; grid-template-columns: 1fr 5mm 1fr; border-bottom: 1.5px solid #000; min-height: 20mm; position: relative; }
     .header-dest { padding: 1.5mm 2mm; }
     .dest-name { font-size: 9pt; font-weight: 700; line-height: 1.2; margin-bottom: 1mm; text-transform: uppercase; }
@@ -314,15 +317,13 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     .header-agence { padding: 1mm 1.5mm; font-size: 5pt; line-height: 1.3; }
     .header-agence .lbl { font-size: 4.5pt; color: #444; }
     .dpd-logo { position: absolute; top: 1.5mm; right: 1.5mm; height: 28px; }
-
-    /* Zone 4+5+8 */
     .middle { display: grid; grid-template-columns: 1fr auto; border-bottom: 1px solid #000; font-size: 6pt; }
     .middle-left { display: flex; flex-direction: column; padding: 1mm 2mm; border-right: 1px solid #000; }
     .middle-left-refs { flex: 1; }
     .middle-left-bottom { border-top: 1px solid #ddd; padding-top: 1mm; display: flex; justify-content: space-between; align-items: center; }
     .row { margin-bottom: 0.8mm; line-height: 1.3; }
     .row .lbl { font-size: 5pt; color: #444; display: block; }
-    .ref-barcode img { height: 7mm; max-width: 60%; }
+    .ref-barcode img { height: 7mm; max-width: 65%; }
     .middle-right { display: grid; grid-template-columns: auto auto; }
     .colis-poids { display: flex; flex-direction: column; border-right: 1px solid #000; }
     .colis-badge { padding: 1mm 2.5mm; border-bottom: 1px solid #000; flex: 1; }
@@ -333,35 +334,26 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     .poids-badge strong { font-size: 12pt; font-weight: 700; }
     .aztec-block { padding: 1mm; display: flex; align-items: center; justify-content: center; width: 26mm; }
     .aztec-block img { width: 100%; height: auto; }
-
-    /* Zone 9+10 */
     .tracking { display: grid; grid-template-columns: 1fr auto; padding: 1mm 2mm; border-bottom: 1px solid #000; align-items: center; }
     .track-label { font-size: 4.5pt; color: #444; }
     .tracking-number { font-size: 16pt; font-weight: 700; letter-spacing: 1px; line-height: 1; }
-    .tracking-number-pending { font-size: 8pt; color: #aaa; font-style: italic; }
+    .tracking-pending { font-size: 7pt; color: #aaa; font-style: italic; }
     .service-block { text-align: right; }
     .service-code { font-size: 9pt; font-weight: 700; }
     .service-lbl { font-size: 4.5pt; color: #444; }
-
-    /* Zone 11 — Plan de transport */
     .transport { border-bottom: 1px solid #000; }
     .transport-row1 { display: grid; grid-template-columns: auto 1fr auto; align-items: center; padding: 0.5mm 2mm; gap: 2mm; min-height: 7mm; }
     .transport-row2 { display: grid; grid-template-columns: auto 1fr auto; align-items: center; padding: 0.3mm 2mm; gap: 2mm; border-top: 1px solid #ccc; min-height: 5mm; }
     .depot { background: #000 !important; color: #fff !important; font-size: 14pt; font-weight: 900; padding: 0.3mm 3mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; min-width: 8mm; text-align: center; }
     .depot-sm { background: #000 !important; color: #fff !important; font-size: 9pt; font-weight: 700; padding: 0.3mm 2mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; min-width: 8mm; text-align: center; }
     .routing { font-size: 14pt; font-weight: 700; text-align: center; }
-    .routing-pending { font-size: 7pt; color: #aaa; text-align: center; font-style: italic; }
+    .routing-pending { font-size: 6pt; color: #aaa; text-align: center; font-style: italic; }
     .sort { background: #000 !important; color: #fff !important; font-size: 12pt; font-weight: 700; padding: 0.3mm 2mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; min-width: 10mm; text-align: center; }
-    .sort-num { font-size: 14pt; font-weight: 900; text-align: center; }
-    .sort-num-pending { font-size: 7pt; color: #aaa; font-style: italic; text-align: center; }
-
-    /* Zone 12+13 */
     .barcode-section { padding: 1mm 2mm 0.5mm; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     .barcode-img { width: 92%; height: auto; image-rendering: pixelated; }
     .barcode-legend { font-size: 5pt; color: #444; margin-top: 0.5mm; text-align: center; letter-spacing: 0.5px; }
     .barcode-meta { font-size: 4pt; color: #888; margin-top: 0.5mm; text-align: center; }
     .barcode-pending { font-size: 6pt; color: #aaa; font-style: italic; text-align: center; }
-
     @media print { * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } }
   </style>
 </head>
@@ -370,12 +362,12 @@ ${labelsWithData.map(({
   orderName, index, total, destName, destCompany, destAddress, destAddress2,
   destZip, destCity, destPhone, weight,
   trackingNumber, barCode28, serviceCode, serviceNum,
-  ref1Display, ref2Display,
+  ref1Display, ref2Display, skuDisplay,
   barcode128Url, refBarcodeUrl, aztecUrl, barcode13Legend,
 }) => `  <div class="label">
     ${isMock ? `<div class="mock-banner">&#9888; Apercu - Mode test (sans credentials DPD)</div>` : ""}
 
-    <!-- Zone 1+2+3 : Destinataire / Expediteur / Agence -->
+    <!-- Zone 1+2+3 -->
     <div class="header">
       <div class="header-dest">
         <div class="dest-name">${destCompany ? `${destCompany}<br/><span style="font-size:7pt;font-weight:400">${destName}</span>` : destName}</div>
@@ -402,18 +394,18 @@ ${labelsWithData.map(({
       <img src="https://dpd-shopify-oken.vercel.app/dpd-logo.png" alt="DPD" class="dpd-logo"/>
     </div>
 
-    <!-- Zone 4+5+8 : Refs / Aztec / Barcode ref -->
+    <!-- Zone 4+5+8 -->
     <div class="middle">
       <div class="middle-left">
-        <!-- Bloc 1 : refs texte -->
         <div class="middle-left-refs">
           <div class="row"><span class="lbl">Contact</span><span>Tel ${destPhone || "-"}</span></div>
           <div class="row"><span class="lbl">Ref 1</span><span>${ref1Display}</span></div>
+          ${skuDisplay ? `<div class="row"><span class="lbl">SKUs</span><span>${skuDisplay}</span></div>` : ""}
           <div class="row"><span class="lbl">Ref 2</span><span>${ref2Display}</span></div>
         </div>
-        <!-- Bloc 2 : barcode ref (zone 8) + logo Predict -->
+        <!-- Zone 8 : barcode SKU + logo Predict -->
         <div class="middle-left-bottom">
-          <div class="ref-barcode">${refBarcodeUrl ? `<img src="${refBarcodeUrl}" alt="barcode ref"/>` : ""}</div>
+          <div class="ref-barcode">${refBarcodeUrl ? `<img src="${refBarcodeUrl}" alt="barcode SKU"/>` : ""}</div>
           <img src="https://dpd-shopify-oken.vercel.app/dpd-predict-livraison.png" style="height:9px" alt="Predict"/>
         </div>
       </div>
@@ -427,13 +419,13 @@ ${labelsWithData.map(({
       </div>
     </div>
 
-    <!-- Zone 9+10 : Tracking + Service -->
+    <!-- Zone 9+10 -->
     <div class="tracking">
       <div>
         <div class="track-label">Track</div>
         ${trackingNumber
           ? `<div class="tracking-number">${trackingNumber}</div>`
-          : `<div class="tracking-number-pending">En attente whitelisting IP DPD</div>`}
+          : `<div class="tracking-pending">Disponible apres whitelisting IP DPD</div>`}
       </div>
       <div class="service-block">
         <div class="service-code">${serviceCode}</div>
@@ -444,20 +436,18 @@ ${labelsWithData.map(({
     <!-- Zone 11 : Plan de transport (disponible apres whitelisting IP) -->
     <div class="transport">
       <div class="transport-row1">
-        <div class="depot">&nbsp;</div>
-        ${trackingNumber
-          ? `<div class="routing-pending">Plan de transport — disponible apres whitelisting IP</div>`
-          : `<div class="routing-pending">Plan de transport — disponible apres whitelisting IP</div>`}
-        <div class="sort">&nbsp;&nbsp;&nbsp;</div>
+        <div class="depot">&nbsp;&nbsp;</div>
+        <div class="routing-pending">Plan de transport — disponible apres whitelisting IP</div>
+        <div class="sort">&nbsp;&nbsp;&nbsp;&nbsp;</div>
       </div>
       <div class="transport-row2">
-        <div class="depot-sm">&nbsp;</div>
+        <div class="depot-sm">&nbsp;&nbsp;</div>
         <div class="routing-pending"></div>
-        <div class="sort-num-pending"></div>
+        <div style="min-width:10mm"></div>
       </div>
     </div>
 
-    <!-- Zone 12+13 : Barcode DPD + legende -->
+    <!-- Zone 12+13 : Grand barcode DPD + legende -->
     <div class="barcode-section">
       ${barcode128Url
         ? `<img class="barcode-img" src="${barcode128Url}" alt="Code-barres DPD"/>`
