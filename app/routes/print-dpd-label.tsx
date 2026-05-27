@@ -116,7 +116,9 @@ async function soapRequest(config: Config, p: SoapParams): Promise<string> {
   // Si PROXY_URL n'est pas défini, appel direct (fallback)
   const WS_URL = process.env.PROXY_URL || "https://e-station.cargonet.software/dpd-eprintwebservice/eprintwebservice.asmx";
   const proxyToken = process.env.PROXY_SECRET || "";
-  const predictService = isMobilePhone(p.destPhone)
+  const isMobile = isMobilePhone(p.destPhone);
+  console.log("[DPD] destPhone:", JSON.stringify(p.destPhone), "isMobile:", isMobile);
+  const predictService = isMobile
     ? `<services><contact><type>Predict</type><value>${escapeXml(p.destPhone)}</value></contact></services>`
     : "";
   const body = `<?xml version="1.0" encoding="utf-8"?>
@@ -395,8 +397,8 @@ ${labelsWithData.map(({
         <div class="middle-left-refs">
           <div class="row"><span class="lbl">Contact</span><span>Tel ${destPhone || "-"}</span></div>
           <div class="row"><span class="lbl">Ref 1</span><span>${ref1Display}</span></div>
-          <div class="row"><span class="lbl">Ref 2</span><span>${ref2Display}</span></div>
           ${skuDisplay ? `<div class="row"><span class="lbl">SKUs</span><span>${skuDisplay}</span></div>` : ""}
+          <div class="row"><span class="lbl">Ref 2</span><span>${ref2Display}</span></div>
         </div>
         <!-- Zone 8 : barcode DPD (barCode28) + logo Predict -->
         <div class="middle-left-bottom">
