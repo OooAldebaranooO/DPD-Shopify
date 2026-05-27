@@ -226,13 +226,13 @@ function Extension() {
 
                   {/* Produits */}
                   {lines.map(line => (
-                    <s-stack direction="inline" gap="base" block-align="center">
+                    <s-inline gap="base" block-align="center">
                       <s-checkbox
                         checked={c.itemIds.includes(line.id)}
                         onChange={() => toggleItem(c.id, line.id)}
                       />
                       <s-text tone="subdued">{`${line.sku ? line.sku + ' — ' : ''}${line.title} (x${line.qty})`}</s-text>
-                    </s-stack>
+                    </s-inline>
                   ))}
 
                 </s-stack>
