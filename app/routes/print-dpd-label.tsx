@@ -260,7 +260,7 @@ async function soapRequest(config: Config, p: SoapParams): Promise<string> {
         </shipperaddress>
         <services>
           <contact>
-            <type>predict</type>
+            <type>Predict</type>
             <value>${escapeXml(p.destPhone)}</value>
           </contact>
         </services>
