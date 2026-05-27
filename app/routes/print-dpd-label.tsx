@@ -1,10 +1,25 @@
 import QRCode from 'qrcode';
 import bwipjs from 'bwip-js';
 import { kv } from '@vercel/kv';
-import * as pdfParseModule from 'pdf-parse';
 
-// pdf-parse peut exporter de différentes façons selon la version
-const pdfParse = (pdfParseModule as any).default ?? pdfParseModule;
+function extractPdfText(base64: string): string {
+  try {
+    const buf = Buffer.from(base64, 'base64');
+    const str = buf.toString('latin1');
+    const parts: string[] = [];
+    const tjRegex = /\(([^)]*)\)\s*Tj/g;
+    const tjArrRegex = /\[([^\]]*)\]\s*TJ/g;
+    let m: RegExpExecArray | null;
+    while ((m = tjRegex.exec(str)) !== null) parts.push(m[1]);
+    while ((m = tjArrRegex.exec(str)) !== null) {
+      const inner = m[1].replace(/\(([^)]*)\)/g, (_: string, s: string) => s);
+      parts.push(inner);
+    }
+    return parts.join(' ');
+  } catch (e) {
+    return '';
+  }
+}
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -290,15 +305,10 @@ async function parseShipmentResponse(xml: string): Promise<{
 
   // Log PDF text pour debug routing
   const labelMatch = xml.match(/<label>([\s\S]*?)<\/label>/);
-  if (labelMatch?.[1]) {
-    try {
-      const pdfBuffer = Buffer.from(labelMatch[1].trim(), 'base64');
-      const data = await pdfParse(pdfBuffer);
-      console.log("===PDF TEXT===", JSON.stringify(data.text));
-    } catch(e) {
-      console.error("PDF parse error:", e);
+    if (labelMatch?.[1]) {
+      const text = extractPdfText(labelMatch[1].trim());
+      console.log("===PDF TEXT===", JSON.stringify(text));
     }
-  }
 
   return {
     trackingNumber: trackMatch?.[1]?.trim() || null,
