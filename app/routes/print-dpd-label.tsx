@@ -273,8 +273,8 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
   const labelsWithData = await Promise.all(labels.map(async (label) => {
     // Zone 9 Track = BarcodeId DPD (ex: 13735327170900)
     const trackingNumber = label.trackingNumber;
-    // Zone 5/12/13 = BarCode 28 chars DPD
-    const barCode28      = label.barCode || "";
+    // Zone 5/12/13 = BarCode 28 chars DPD (API) — fallback sur shopifyOrderId en mode mock
+    const barCode28      = label.barCode || label.shopifyOrderId || "";
     // Zone 10
     const serviceCode    = parseFloat(label.weight) <= 1 ? 'XD-B2C' : 'D-B2C';
     const serviceNum     = parseFloat(label.weight) <= 1 ? '328' : '327';
@@ -288,13 +288,12 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
 
     const [barcode128Url, refBarcodeUrl, aztecUrl] = await Promise.all([
       generateBarcode128(barCode28),       // Zone 12 — grand barcode DPD en bas
-      generateRefBarcode128(skuDisplay),   // Zone 8 — petit barcode SKU
+      generateRefBarcode128(barCode28),    // Zone 8 — petit barcode DPD (même que zone 12)
       generateAztecPng(barCode28),         // Zone 5 — Aztec DPD
     ]);
 
-    // Zone 13 — légende formatée du barcode 28 chars
-    // Format : % CP7 AGENCY4 NUMEXP10 SERVICE3 ISO3
-    const barcode13Legend = barCode28.length >= 28
+    // Zone 13 — légende sous le grand barcode (formatée si 28 chars réels, brut si mock)
+    const barcode13Legend = label.barCode && barCode28.length >= 28
       ? `${barCode28.slice(0,1)} ${barCode28.slice(1,8)} ${barCode28.slice(8,12)} ${barCode28.slice(12,22)} ${barCode28.slice(22,25)} ${barCode28.slice(25,28)}`
       : barCode28;
 
@@ -411,9 +410,9 @@ ${labelsWithData.map(({
           ${skuDisplay ? `<div class="row"><span class="lbl">SKUs</span><span>${skuDisplay}</span></div>` : ""}
           <div class="row"><span class="lbl">Ref 2</span><span>${ref2Display}</span></div>
         </div>
-        <!-- Zone 8 : barcode SKU + logo Predict -->
+        <!-- Zone 8 : barcode DPD (barCode28) + logo Predict -->
         <div class="middle-left-bottom">
-          <div class="ref-barcode">${refBarcodeUrl ? `<img src="${refBarcodeUrl}" alt="barcode SKU"/>` : ""}</div>
+          <div class="ref-barcode">${refBarcodeUrl ? `<img src="${refBarcodeUrl}" alt="barcode DPD"/>` : ""}</div>
           <img src="https://dpd-shopify-oken.vercel.app/dpd-predict-livraison.png" style="height:9px" alt="Predict"/>
         </div>
       </div>
