@@ -233,7 +233,7 @@ function Extension() {
               <s-box padding="base" background="surface-secondary" border-radius="base">
                 <s-stack direction="block" gap="small">
 
-                  <s-stack direction="inline" gap="base">
+                  <s-stack direction="inline" justifyContent="space-between" alignItems="center" gap="base" {...{} as any}>
                     <s-heading><strong>📦 Colis {colisIndex + 1} / {colis.length}</strong></s-heading>
                     {colis.length > 1 && (
                       <s-button variant="primary" tone="critical" onClick={() => removeColis(c.id)}>
