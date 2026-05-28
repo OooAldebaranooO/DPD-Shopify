@@ -49,7 +49,7 @@ function Extension() {
               ... on Order {
                 id name
                 shippingAddress {
-                  firstName lastName company address1 address2 zip city phone
+                  firstName lastName company address1 address2 zip city phone country
                 }
                 lineItems(first: 100) {
                   edges {
@@ -140,19 +140,20 @@ function Extension() {
     const skusParam    = colisItems.map(i => encodeURIComponent(i.sku)).join("|");
 
     const url = `https://dpd-shopify-oken.vercel.app/print-dpd-label` +
-      `?orderName=${encodeURIComponent(orderName ?? "")}` +
-      `&shopifyOrderId=${encodeURIComponent(shopifyOrderId ?? "")}` +
-      `&count=${count}` +
-      `&destName=${encodeURIComponent(destName)}` +
-      `&destCompany=${encodeURIComponent(destCompany)}` +
-      `&destAddress=${encodeURIComponent(addr?.address1 || "")}` +
-      `&destAddress2=${encodeURIComponent(addr?.address2 || "")}` +
-      `&destZip=${encodeURIComponent(addr?.zip || "")}` +
-      `&destCity=${encodeURIComponent(addr?.city || "")}` +
-      `&destPhone=${encodeURIComponent(addr?.phone || "")}` +
-      `&weights=${encodeURIComponent(weightsParam)}` +
-      `&skus=${encodeURIComponent(skusParam)}` +
-      `&titles=${encodeURIComponent(skusParam)}`;
+    `?orderName=${encodeURIComponent(orderName ?? "")}` +
+    `&shopifyOrderId=${encodeURIComponent(shopifyOrderId ?? "")}` +
+    `&count=${count}` +
+    `&destName=${encodeURIComponent(destName)}` +
+    `&destCompany=${encodeURIComponent(destCompany)}` +
+    `&destAddress=${encodeURIComponent(addr?.address1 || "")}` +
+    `&destAddress2=${encodeURIComponent(addr?.address2 || "")}` +
+    `&destZip=${encodeURIComponent(addr?.zip || "")}` +
+    `&destCity=${encodeURIComponent(addr?.city || "")}` +
+    `&destPhone=${encodeURIComponent(addr?.phone || "")}` +
+    `&destCountry=${encodeURIComponent(addr?.country || "France")}` +
+    `&weights=${encodeURIComponent(weightsParam)}` +
+    `&skus=${encodeURIComponent(skusParam)}` +
+    `&titles=${encodeURIComponent(skusParam)}`;
 
     setPrintUrl(url);
   }, [colis, lines, addr, orderName, shopifyOrderId]);
