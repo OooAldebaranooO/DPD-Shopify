@@ -252,7 +252,7 @@ function Extension() {
                   const remaining = line.qty - assignedQty(line.id);
                   const label     = line.sku || line.title;
                   return (
-                    <s-box padding="base" background="surface-secondary" border-radius="base">
+                    <s-box padding="base" background="surface-secondary" border-radius="base" borderColor="base" {...{} as any}>
                       <s-stack direction="block" gap="small">
                         <s-stack direction="inline" gap="small">
                           <s-text>{label}</s-text>
