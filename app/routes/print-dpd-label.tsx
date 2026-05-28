@@ -192,21 +192,23 @@ async function getLabelData(config: Config, barCode: string, trackingNumber: str
 <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:imt="http://www.cargonet.software">
   <soap:Header><imt:UserCredentials><imt:userid>${config.login}</imt:userid><imt:password>${config.password}</imt:password></imt:UserCredentials></soap:Header>
   <soap:Body>
-    <GetLabelData xmlns="http://www.cargonet.software">
+    <GetLabelBc xmlns="http://www.cargonet.software">
       <request>
-        <customer_countrycode>250</customer_countrycode>
-        <customer_centernumber>${config.agencyCode}</customer_centernumber>
-        <customer_number>${config.contractNumber}</customer_number>
+        <customer>
+          <countrycode>250</countrycode>
+          <centernumber>${config.agencyCode}</centernumber>
+          <number>${config.contractNumber}</number>
+        </customer>
         <shipmentNumber>${escapeXml(trackingNumber)}</shipmentNumber>
         <labelType><type>PDF</type><format>A6</format></labelType>
       </request>
-    </GetLabelData>
+    </GetLabelBc>
   </soap:Body>
 </soap:Envelope>`;
   try {
     const response = await fetch(WS_URL, {
       method: "POST",
-      headers: { "Content-Type": "text/xml; charset=utf-8", "SOAPAction": "http://www.cargonet.software/GetLabelData", ...(proxyToken ? { "X-Proxy-Token": proxyToken } : {}) },
+      headers: { "Content-Type": "text/xml; charset=utf-8", "SOAPAction": "http://www.cargonet.software/GetLabelBc", ...(proxyToken ? { "X-Proxy-Token": proxyToken } : {}) },
       body,
     });
     const xml = await response.text();
