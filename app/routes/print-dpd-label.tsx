@@ -211,9 +211,8 @@ async function getLabelData(config: Config, barCode: string, trackingNumber: str
       body,
     });
     const xml = await response.text();
-    console.log("=== GetLabelData XML ===", xml.slice(0, 3000));
-
     const tag = (name: string) => xml.match(new RegExp(`<${name}>([^<]*)<\/${name}>`, 'i'))?.[1]?.trim() || "";
+    console.log("sSort:", tag("SSort"), "depot:", tag("Bic3Depot"));
     const aztecMatch    = xml.match(/<Identifier>Aztec<\/Identifier><BarcodeValue>([\s\S]*?)<\/BarcodeValue>/i);
     const bic3ValMatch  = xml.match(/<Identifier>Bic3<\/Identifier><BarcodeValue>([\s\S]*?)<\/BarcodeValue>/i);
     const bic3TextMatch = xml.match(/<Identifier>Bic3<\/Identifier><BarcodeValue>[\s\S]*?<\/BarcodeValue><BarcodeText>([\s\S]*?)<\/BarcodeText>/i);
