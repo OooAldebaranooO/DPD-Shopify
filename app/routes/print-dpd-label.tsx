@@ -488,16 +488,17 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     .service-block { text-align: right; }
     .service-code { font-size: 14pt; font-weight: 700; }
     .service-lbl { font-size: 4.5pt; color: #444; }
+    .service-lbl-bottom { font-size: 12pt; color: #444; }
     .transport { border-bottom: 1px solid #000; }
     .transport-row1 { display: grid; grid-template-columns: auto 1fr auto; align-items: center; padding: 0.5mm 2mm; gap: 2mm; min-height: 7mm; }
-    .transport-row2 { display: grid; grid-template-columns: auto 1fr auto; align-items: center; padding: 0.3mm 2mm; gap: 2mm; border-top: 1px solid #ccc; min-height: 5mm; }
+    .transport-row2 { display: grid; grid-template-columns: auto 1fr auto; align-items: center; padding: 0.3mm 2mm; gap: 2mm; border-top: 1px solid #ccc; min-height: 5mm; grid-auto-flow: column; }
     .depot { background: #000 !important; color: #fff !important; font-size: 14pt; font-weight: 900; padding: 0.3mm 3mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; min-width: 8mm; text-align: center; }
     .depot-sm { background: #000 !important; color: #fff !important; font-size: 17pt; font-weight: 700; padding: 0.3mm 2mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; min-width: 8mm; text-align: center; width: 22mm; }
     .routing { font-size: 19pt; font-weight: 700; text-align: center; }
     .routing-pending { font-size: 6pt; color: #aaa; text-align: center; font-style: italic; }
     .sort { background: #000 !important; color: #fff !important; font-size: 17pt; font-weight: 700; padding: 0.3mm 2mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; min-width: 10mm; text-align: center; }
     .barcode-section { padding: 1mm 2mm 0.5mm; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-    .barcode-img { width: 92%; height: auto; image-rendering: pixelated; }
+    .barcode-img { width: 95%; height: auto; image-rendering: pixelated; height:30mm; }
     .barcode-legend { font-size: 5pt; color: #444; margin-top: 0.5mm; text-align: center; letter-spacing: 0.5px; }
     .barcode-meta { font-size: 4pt; color: #888; margin-top: 0.5mm; text-align: center; }
     @media print { * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } }
@@ -589,11 +590,10 @@ ${labelsWithData.map(({
           : `<div class="sort">&nbsp;&nbsp;&nbsp;&nbsp;</div>`}
       </div>
       <div class="transport-row2">
-        <div class="service-lbl">Service: ${serviceNum}</div>-<span class="dest-zip">${countryPrefix}-${destZip}</span>
+        <div class="service-lbl-bottom">${serviceNum}-${countryPrefix}-${destZip}</span>
         ${routing?.dSort
           ? `<div class="depot-sm">${routing.dSort}</div>`
           : `<div class="depot-sm">&nbsp;&nbsp;</div>`}
-        <div style="min-width:10mm"></div>
       </div>
     </div>
 
