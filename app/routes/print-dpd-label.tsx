@@ -513,7 +513,7 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     .sort { background: #000 !important; color: #fff !important; font-size: 17pt; font-weight: 700; padding: 0.3mm 2mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; min-width: 10mm; text-align: center; width: 22mm; }
     .barcode-section { padding: 5mm 2mm 0.5mm; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     .barcode-img { width: 95%; height: auto; image-rendering: pixelated; height:30mm; }
-    .barcode-legend { font-size: 7pt; color: #444; margin-top: 1mm; text-align: center; letter-spacing: 0.5px; }
+    .barcode-legend { font-size: 7pt; color: #444; margin-top: 1mm; text-align: center; letter-spacing: 0.5px; margin-bottom: 5mm; }
     .barcode-meta { font-size: 4pt; color: #888; margin-top: 0.5mm; text-align: center; }
     @media print { * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } }
   </style>
@@ -604,7 +604,7 @@ ${labelsWithData.map(({
           : `<div class="sort">&nbsp;&nbsp;&nbsp;&nbsp;</div>`}
       </div>
       <div class="transport-row2">
-        <div class="service-lbl-bottom">${serviceNum}-${countryPrefix}-${destZip}</span>
+        <div class="service-lbl-bottom">${serviceNum}-${countryPrefix}-${destZip}</div>
         ${routing?.dSort
           ? `<div class="depot-sm">${routing.dSort}</div>`
           : `<div class="depot-sm">&nbsp;&nbsp;</div>`}
