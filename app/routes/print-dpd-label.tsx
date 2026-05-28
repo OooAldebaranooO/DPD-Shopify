@@ -28,8 +28,20 @@ interface LabelData {
   labelPdf:       string | null;
   trackingNumber: string | null; // BarcodeId DPD — zone 9 Track
   barCode:        string | null; // BarCode 28 chars — zone 5/12/13
+  routing:        RoutingData | null; // Zone 11 plan de transport
   fromApi: boolean;
 }
+interface RoutingData {
+  depot:        string; // Bic3Depot — centre livreur (bloc noir gauche)
+  bic3Number:   string; // Bic3Number — numéro de routage central
+  sSort:        string; // SSort — code tri (bloc noir droite)
+  dSort:        string; // DSort — tournée
+  routingText:  string; // Routingtext ex: FR-DPD-1022
+  serviceText:  string; // Servicetext ex: D-B2C
+  aztecValue:   string | null; // Valeur du code Aztec DPD officiel
+  bic3Text:     string; // BarcodeText zone 13
+}
+
 interface SoapParams {
   destName: string; destCompany: string; destAddress: string; destAddress2: string;
   destZip: string; destCity: string; destPhone: string;
@@ -74,7 +86,7 @@ export async function loader({ request }: { request: Request }) {
             destAddress: order.destAddress, destAddress2: order.destAddress2,
             destZip: order.destZip, destCity: order.destCity, destPhone: order.destPhone,
             weight: Math.max(0.01, item.weight).toFixed(2), sku: item.sku, title: item.title,
-            labelPdf: null, trackingNumber: null, barCode: null, fromApi: false,
+            labelPdf: null, trackingNumber: null, barCode: null, routing: null, fromApi: false,
           }));
         }
       }
@@ -173,6 +185,51 @@ async function parseShipmentResponse(xml: string): Promise<{ trackingNumber: str
   return { trackingNumber: trackMatch?.[1]?.trim() || null, barCode, error: null };
 }
 
+async function getLabelData(config: Config, barCode: string): Promise<RoutingData | null> {
+  const WS_URL     = process.env.PROXY_URL || "https://e-station.cargonet.software/dpd-eprintwebservice/eprintwebservice.asmx";
+  const proxyToken = process.env.PROXY_SECRET || "";
+  const body = `<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:imt="http://www.cargonet.software">
+  <soap:Header><imt:UserCredentials><imt:userid>${config.login}</imt:userid><imt:password>${config.password}</imt:password></imt:UserCredentials></soap:Header>
+  <soap:Body>
+    <GetLabelData xmlns="http://www.cargonet.software">
+      <request>
+        <customer_countrycode>250</customer_countrycode>
+        <customer_centernumber>${config.agencyCode}</customer_centernumber>
+        <customer_number>${config.contractNumber}</customer_number>
+        <shipmentNumber>${escapeXml(barCode)}</shipmentNumber>
+        <labelType><type>PDF</type><format>A6</format></labelType>
+      </request>
+    </GetLabelData>
+  </soap:Body>
+</soap:Envelope>`;
+  try {
+    const response = await fetch(WS_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/xml; charset=utf-8", "SOAPAction": "http://www.cargonet.software/GetLabelData", ...(proxyToken ? { "X-Proxy-Token": proxyToken } : {}) },
+      body,
+    });
+    const xml = await response.text();
+    const tag = (name: string) => xml.match(new RegExp(`<${name}>([\s\S]*?)<\/${name}>`, 'i'))?.[1]?.trim() || "";
+    // Aztec BarcodeValue
+    const aztecMatch = xml.match(/<Identifier>Aztec<\/Identifier>\s*<BarcodeValue>([\s\S]*?)<\/BarcodeValue>/i);
+    const bic3Match  = xml.match(/<Identifier>Bic3<\/Identifier>[\s\S]*?<BarcodeText>([\s\S]*?)<\/BarcodeText>/i);
+    return {
+      depot:       tag("Bic3Depot"),
+      bic3Number:  tag("Bic3Number"),
+      sSort:       tag("SSort"),
+      dSort:       tag("DSort"),
+      routingText: tag("Routingtext"),
+      serviceText: tag("Servicetext"),
+      aztecValue:  aztecMatch?.[1]?.trim() || null,
+      bic3Text:    bic3Match?.[1]?.trim() || "",
+    };
+  } catch (e) {
+    console.error("GetLabelData error:", e);
+    return null;
+  }
+}
+
 async function callDpdEprint(config: Config, order: OrderParams): Promise<LabelData[]> {
   const shippingDate = new Date().toLocaleDateString("fr-FR").split("/").join(".");
   const weightsList  = String(order.weights || "1").split(",").map(w => parseFloat(w) || 0);
@@ -195,7 +252,9 @@ async function callDpdEprint(config: Config, order: OrderParams): Promise<LabelD
     });
     const { trackingNumber, barCode, error } = await parseShipmentResponse(xml);
     if (error) throw new Error(error);
-    labels.push({ orderName: order.orderName, shopifyOrderId: order.shopifyOrderId, index: i, total: order.count, destName: order.destName, destCompany: order.destCompany, destAddress: order.destAddress, destAddress2: order.destAddress2, destZip: order.destZip, destCity: order.destCity, destPhone: order.destPhone, weight: itemWeight, sku: itemSku, title: itemTitle, labelPdf: null, trackingNumber, barCode, fromApi: true });
+    // Récupère les données de routage (zone 11) via GetLabelData
+    const routing = barCode ? await getLabelData(config, barCode) : null;
+    labels.push({ orderName: order.orderName, shopifyOrderId: order.shopifyOrderId, index: i, total: order.count, destName: order.destName, destCompany: order.destCompany, destAddress: order.destAddress, destAddress2: order.destAddress2, destZip: order.destZip, destCity: order.destCity, destPhone: order.destPhone, weight: itemWeight, sku: itemSku, title: itemTitle, labelPdf: null, trackingNumber, barCode, routing, fromApi: true });
   }
   return labels;
 }
@@ -226,7 +285,7 @@ function buildMockLabels(orderName: string, shopifyOrderId: string, count: numbe
     orderName, shopifyOrderId, index: i + 1, total: count, destName, destCompany, destAddress, destAddress2, destZip, destCity, destPhone,
     weight: Math.max(0.01, weightsList[i] ?? weightsList[0] ?? 1).toFixed(2),
     sku: skusList[i] ?? "", title: titlesList[i] ?? "",
-    labelPdf: null, trackingNumber: null, barCode: null, fromApi: false,
+    labelPdf: null, trackingNumber: null, barCode: null, routing: null, fromApi: false,
   }));
 }
 
@@ -329,8 +388,10 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     // SKUs
     const skuDisplay     = label.sku || "";
 
-    // Contenu Aztec avec toutes les données DPD
-    const aztecContent = label.trackingNumber
+    // Contenu Aztec : utilise la valeur officielle DPD si disponible
+    const aztecContent = label.routing?.aztecValue
+      ? label.routing.aztecValue
+      : label.trackingNumber
       ? buildAztecContent({
           trackingNumber: label.trackingNumber,
           barCode28,
@@ -359,13 +420,18 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     ]);
 
     // Zone 13 — légende sous le grand barcode (formatée si 28 chars réels, brut si mock)
-    // Légende : retire % initial, format XXXX XXX XXXX XXXX XXXX XX XXX XXX X
-    const b = label.barCode ? barCode28.replace(/^%/, "") : barCode28;
-    const barcode13Legend = label.barCode && b.length >= 27
-      ? `${b.slice(0,4)} ${b.slice(4,7)} ${b.slice(7,11)} ${b.slice(11,15)} ${b.slice(15,19)} ${b.slice(19,21)} ${b.slice(21,24)} ${b.slice(24,27)} X`
-      : b;
+    // Légende zone 13 : utilise BarcodeText DPD officiel si disponible
+    let barcode13Legend: string;
+    if (label.routing?.bic3Text) {
+      barcode13Legend = label.routing.bic3Text;
+    } else {
+      const b = label.barCode ? barCode28.replace(/^%/, "") : barCode28;
+      barcode13Legend = label.barCode && b.length >= 27
+        ? `${b.slice(0,4)} ${b.slice(4,7)} ${b.slice(7,11)} ${b.slice(11,15)} ${b.slice(15,19)} ${b.slice(19,21)} ${b.slice(21,24)} ${b.slice(24,27)} X`
+        : b;
+    }
 
-    return { ...label, trackingNumber, barCode28, serviceCode, serviceNum, ref1Display, ref2Display, skuDisplay, barcode128Url, refBarcodeUrl, aztecUrl, barcode13Legend };
+    return { ...label, trackingNumber, barCode28, serviceCode, serviceNum, ref1Display, ref2Display, skuDisplay, barcode128Url, refBarcodeUrl, aztecUrl, barcode13Legend, routing: label.routing };
   }));
 
   return `<!DOCTYPE html>
@@ -400,7 +466,7 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     .middle-left-bottom { border-top: 1px solid #ddd; padding-top: 1mm; display: flex; justify-content: space-between; align-items: center; }
     .row { margin-bottom: 0.8mm; line-height: 1.3; }
     .row .lbl { font-size: 5pt; color: #444; display: block; }
-    .ref-barcode img { height: 7mm; max-width: 95%; }
+    .ref-barcode img { height: 7mm; max-width: 65%; }
     .middle-right { display: grid; grid-template-columns: auto auto; }
     .colis-poids { display: flex; flex-direction: column; border-right: 1px solid #000; }
     .colis-badge { padding: 1mm 2.5mm; border-bottom: 1px solid #000; flex: 1; }
@@ -439,7 +505,7 @@ ${labelsWithData.map(({
   destZip, destCity, destPhone, weight,
   trackingNumber, barCode28, serviceCode, serviceNum,
   ref1Display, ref2Display, skuDisplay,
-  barcode128Url, refBarcodeUrl, aztecUrl, barcode13Legend,
+  barcode128Url, refBarcodeUrl, aztecUrl, barcode13Legend, routing,
 }) => `  <div class="label">
     ${isMock ? `<div class="mock-banner">&#9888; Apercu - Mode test (sans credentials DPD)</div>` : ""}
 
@@ -476,8 +542,8 @@ ${labelsWithData.map(({
         <div class="middle-left-refs">
           <div class="row"><span class="lbl">Contact</span><span>Tel ${destPhone || "-"}</span></div>
           <div class="row"><span class="lbl">Ref 1</span><span>${ref1Display}</span></div>
-          <div class="row"><span class="lbl">Ref 2</span><span>${ref2Display}</span></div>
           ${skuDisplay ? `<div class="row"><span class="lbl">SKUs</span><span>${skuDisplay}</span></div>` : ""}
+          <div class="row"><span class="lbl">Ref 2</span><span>${ref2Display}</span></div>
         </div>
         <!-- Zone 8 : barcode DPD (barCode28) + logo Predict -->
         <div class="middle-left-bottom">
@@ -510,13 +576,23 @@ ${labelsWithData.map(({
     <!-- Zone 11 : Plan de transport -->
     <div class="transport">
       <div class="transport-row1">
-        <div class="depot">&nbsp;&nbsp;</div>
-        <div class="routing-pending">Plan de transport</div>
-        <div class="sort">&nbsp;&nbsp;&nbsp;&nbsp;</div>
+        ${routing?.depot
+          ? `<div class="depot">${routing.depot}</div>`
+          : `<div class="depot">&nbsp;&nbsp;</div>`}
+        ${routing?.routingText
+          ? `<div class="routing">${routing.routingText}-</div>`
+          : `<div class="routing-pending">Plan de transport — disponible apres whitelisting IP</div>`}
+        ${routing?.sSort
+          ? `<div class="sort">${routing.sSort}</div>`
+          : `<div class="sort">&nbsp;&nbsp;&nbsp;&nbsp;</div>`}
       </div>
       <div class="transport-row2">
-        <div class="depot-sm">&nbsp;&nbsp;</div>
-        <div class="routing-pending"></div>
+        ${routing?.dSort
+          ? `<div class="depot-sm">${routing.dSort}</div>`
+          : `<div class="depot-sm">&nbsp;&nbsp;</div>`}
+        ${routing?.bic3Number
+          ? `<div class="routing" style="font-size:9pt">${routing.bic3Number}</div>`
+          : `<div class="routing-pending"></div>`}
         <div style="min-width:10mm"></div>
       </div>
     </div>
