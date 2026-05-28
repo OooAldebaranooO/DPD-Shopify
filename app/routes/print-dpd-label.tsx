@@ -213,10 +213,17 @@ async function getLabelData(config: Config, barCode: string, trackingNumber: str
     });
     const xml = await response.text();
     console.log("[GetLabelData] xml:", xml.slice(0, 2000));
-    const tag = (name: string) => xml.match(new RegExp(`<${name}>([\s\S]*?)<\/${name}>`, 'i'))?.[1]?.trim() || "";
-    // Aztec BarcodeValue
-    const aztecMatch = xml.match(/<Identifier>Aztec<\/Identifier>\s*<BarcodeValue>([\s\S]*?)<\/BarcodeValue>/i);
-    const bic3Match  = xml.match(/<Identifier>Bic3<\/Identifier>[\s\S]*?<BarcodeText>([\s\S]*?)<\/BarcodeText>/i);
+    const tag = (name: string) => xml.match(new RegExp(`<${name}>([^<]*)<\/${name}>`, 'i'))?.[1]?.trim() || "";
+    // Aztec : dans BarcodeData imbriqué
+    const aztecMatch = xml.match(/<Identifier>Aztec<\/Identifier><BarcodeValue>([\s\S]*?)<\/BarcodeValue>/i);
+    // Bic3 : BarcodeValue et BarcodeText
+    const bic3ValMatch  = xml.match(/<Identifier>Bic3<\/Identifier><BarcodeValue>([\s\S]*?)<\/BarcodeValue>/i);
+    const bic3TextMatch = xml.match(/<Identifier>Bic3<\/Identifier><BarcodeValue>[\s\S]*?<\/BarcodeValue><BarcodeText>([\s\S]*?)<\/BarcodeText>/i);
+    // Decode entités XML dans aztecValue
+    const rawAztec = aztecMatch?.[1]?.trim() || null;
+    const aztecDecoded = rawAztec
+      ? rawAztec.replace(/&gt;/g, ">").replace(/&lt;/g, "<").replace(/&amp;/g, "&").replace(/&quot;/g, '"')
+      : null;
     return {
       depot:       tag("Bic3Depot"),
       bic3Number:  tag("Bic3Number"),
@@ -224,8 +231,8 @@ async function getLabelData(config: Config, barCode: string, trackingNumber: str
       dSort:       tag("DSort"),
       routingText: tag("Routingtext"),
       serviceText: tag("Servicetext"),
-      aztecValue:  aztecMatch?.[1]?.trim() || null,
-      bic3Text:    bic3Match?.[1]?.trim() || "",
+      aztecValue:  aztecDecoded,
+      bic3Text:    bic3TextMatch?.[1]?.trim() || bic3ValMatch?.[1]?.trim() || "",
     };
   } catch (e) {
     console.error("GetLabelData error:", e);
