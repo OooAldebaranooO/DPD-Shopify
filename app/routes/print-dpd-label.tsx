@@ -505,7 +505,7 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     .aztec-block { padding: 1mm; display: flex; align-items: center; justify-content: center; width: 33mm; }
     .aztec-block img { width: 100%; height: auto; }
     .tracking { display: grid; grid-template-columns: 1fr auto; padding: 1mm 2mm; align-items: start; height: 20mm; }
-    .track-label { font-size: 4.5pt; color: #000; }
+    .track-label { font-size: 4.5pt; color: #000; padding: 2mm 0mm 2mm 2mm; }
     .tracking-number { font-size: 16pt; font-weight: 700; letter-spacing: 1px; line-height: 1; }
     .tracking-number .depot-code { font-size: 22pt; font-weight: 900; }
     .service-block { text-align: right; }
@@ -593,7 +593,6 @@ ${labelsWithData.map(({
         <div class="tracking-number">${trackingNumber ? `<span class="depot-code">${trackingNumber.slice(0,4)}</span> ${trackingNumber.slice(4,8)} ${trackingNumber.slice(8,12)} ${trackingNumber.slice(12,14)} ${trackingKey}` : ""}</div>
       </div>
       <div class="service-block">
-        <div class="track-label">Track</div>
         <div class="service-code">${serviceCode}</div>
         <div class="service-lbl">Service: ${serviceNum}</div>
       </div>
@@ -601,6 +600,7 @@ ${labelsWithData.map(({
 
     <!-- Zone 11 : Plan de transport -->
     <div class="transport">
+      <div class="track-label">Track</div>
       <div class="transport-row1">
         ${routing?.depot
           ? `<div class="depot">${routing.depot}</div>`
