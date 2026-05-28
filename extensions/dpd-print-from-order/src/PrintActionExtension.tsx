@@ -206,7 +206,7 @@ function Extension() {
           <s-stack direction="block" gap="base">
 
             {/* @ts-ignore */}
-            <s-stack direction="inline" justifyContent="start" alignItems="center" gap="base">
+            <s-stack direction="inline" justifyContent="space-between" alignItems="center" gap="base">
               <s-box padding="base" background="surface-secondary">
                 <s-stack direction="block" gap="none">
                   <s-text tone="subdued">Commande</s-text>
@@ -219,7 +219,7 @@ function Extension() {
                   <s-heading>{String(colis.length)}</s-heading>
                 </s-stack>
               </s-box>
-              <s-button onClick={addColis}>+ Ajouter un colis</s-button>
+              <s-button variant="primary" onClick={addColis}>+ Ajouter un colis</s-button>
             </s-stack>
 
             {unassignedLines.length > 0 && (
