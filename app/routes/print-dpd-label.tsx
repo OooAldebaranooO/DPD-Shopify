@@ -185,7 +185,7 @@ async function parseShipmentResponse(xml: string): Promise<{ trackingNumber: str
   return { trackingNumber: trackMatch?.[1]?.trim() || null, barCode, error: null };
 }
 
-async function getLabelData(config: Config, barCode: string): Promise<RoutingData | null> {
+async function getLabelData(config: Config, barCode: string, trackingNumber: string): Promise<RoutingData | null> {
   const WS_URL     = process.env.PROXY_URL || "https://e-station.cargonet.software/dpd-eprintwebservice/eprintwebservice.asmx";
   const proxyToken = process.env.PROXY_SECRET || "";
   const body = `<?xml version="1.0" encoding="utf-8"?>
@@ -197,7 +197,7 @@ async function getLabelData(config: Config, barCode: string): Promise<RoutingDat
         <customer_countrycode>250</customer_countrycode>
         <customer_centernumber>${config.agencyCode}</customer_centernumber>
         <customer_number>${config.contractNumber}</customer_number>
-        <shipmentNumber>${escapeXml(barCode)}</shipmentNumber>
+        <shipmentNumber>${escapeXml(trackingNumber)}</shipmentNumber>
         <labelType><type>PDF</type><format>A6</format></labelType>
       </request>
     </GetLabelData>
@@ -210,6 +210,7 @@ async function getLabelData(config: Config, barCode: string): Promise<RoutingDat
       body,
     });
     const xml = await response.text();
+    console.log("[GetLabelData] xml:", xml.slice(0, 500));
     const tag = (name: string) => xml.match(new RegExp(`<${name}>([\s\S]*?)<\/${name}>`, 'i'))?.[1]?.trim() || "";
     // Aztec BarcodeValue
     const aztecMatch = xml.match(/<Identifier>Aztec<\/Identifier>\s*<BarcodeValue>([\s\S]*?)<\/BarcodeValue>/i);
@@ -253,7 +254,7 @@ async function callDpdEprint(config: Config, order: OrderParams): Promise<LabelD
     const { trackingNumber, barCode, error } = await parseShipmentResponse(xml);
     if (error) throw new Error(error);
     // Récupère les données de routage (zone 11) via GetLabelData
-    const routing = barCode ? await getLabelData(config, barCode) : null;
+    const routing = (barCode && trackingNumber) ? await getLabelData(config, barCode, trackingNumber) : null;
     console.log("[DPD] routing:", JSON.stringify(routing));
     labels.push({ orderName: order.orderName, shopifyOrderId: order.shopifyOrderId, index: i, total: order.count, destName: order.destName, destCompany: order.destCompany, destAddress: order.destAddress, destAddress2: order.destAddress2, destZip: order.destZip, destCity: order.destCity, destPhone: order.destPhone, weight: itemWeight, sku: itemSku, title: itemTitle, labelPdf: null, trackingNumber, barCode, routing, fromApi: true });
   }
