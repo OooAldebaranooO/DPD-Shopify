@@ -363,7 +363,7 @@ function buildAztecContent(params: {
 async function generateBarcode128(value: string): Promise<string> {
   if (!value) return "";
   try {
-    const png = await bwipjs.toBuffer({ bcid: 'azteccode', text: value, scale: 6 });
+    const png = await bwipjs.toBuffer({ bcid: 'code128', text: value, scale: 3, height: 14, includetext: false });
     return `data:image/png;base64,${png.toString('base64')}`;
   } catch (e) { return ""; }
 }
@@ -376,14 +376,15 @@ async function generateRefBarcode128(value: string): Promise<string> {
   } catch (e) { return ""; }
 }
 
+// CORRECTION 1 : scale 6 pour un Aztec lisible
 async function generateAztecPng(value: string): Promise<string> {
   if (!value) return "";
   try {
-    const png = await bwipjs.toBuffer({ bcid: 'azteccode', text: value, scale: 3 });
+    const png = await bwipjs.toBuffer({ bcid: 'azteccode', text: value, scale: 6 });
     return `data:image/png;base64,${png.toString('base64')}`;
   } catch (e) {
     try {
-      const png = await bwipjs.toBuffer({ bcid: 'qrcode', text: value, scale: 3 });
+      const png = await bwipjs.toBuffer({ bcid: 'qrcode', text: value, scale: 6 });
       return `data:image/png;base64,${png.toString('base64')}`;
     } catch (e2) { return ""; }
   }
@@ -425,16 +426,15 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
       generateAztecPng(aztecContent),
     ]);
 
+    // CORRECTION 4 : legende = serviceNum-countryPrefix-destZip (ex: 327-FR-57100)
     let barcode13Legend: string;
-      if (label.routing?.bic3Text) {
-        barcode13Legend = label.routing.bic3Text;
-      } else if (label.barCode) {
-        const b = barCode28.replace(/^%/, "");
-        // Format : serviceNum-countryPrefix-destZip
-        barcode13Legend = `${serviceNum}-${countryPrefix}-${label.destZip}`;
-      } else {
-        barcode13Legend = barCode28;
-      }
+    if (label.routing?.bic3Text) {
+      barcode13Legend = label.routing.bic3Text;
+    } else if (label.barCode) {
+      barcode13Legend = `${serviceNum}-${countryPrefix}-${label.destZip}`;
+    } else {
+      barcode13Legend = barCode28;
+    }
 
     return { ...label, trackingNumber, barCode28, serviceCode, serviceNum, ref1Display, ref2Display, skuDisplay, countryPrefix, barcode128Url, refBarcodeUrl, aztecUrl, barcode13Legend, routing: label.routing };
   }));
@@ -491,14 +491,11 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     .service-lbl { font-size: 4.5pt; color: #444; }
     .transport { border-bottom: 1px solid #000; }
     .transport-row1 { display: grid; grid-template-columns: auto 1fr; align-items: flex-start; padding: 0.5mm 2mm; gap: 2mm; min-height: 10mm; }
-    .transport-row2 { display: grid; grid-template-columns: auto 1fr auto; align-items: center; padding: 0.3mm 2mm; gap: 2mm; border-top: 1px solid #ccc; min-height: 5mm; }
-    .depot { background: #000 !important; color: #fff !important; font-size: 14pt; font-weight: 900; padding: 0.3mm 3mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; min-width: 8mm; text-align: center; }
-    .depot-sm { background: #000 !important; color: #fff !important; font-size: 9pt; font-weight: 700; padding: 0.3mm 2mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; min-width: 8mm; text-align: center; }
-    .routing-text-sort { display: flex; flex-direction: column; justify-content: center; }
-    .routing { font-size: 14pt; font-weight: 700; }
-    .routing-dsort { font-size: 10pt; font-weight: 700; margin-top: 0.5mm; }
+    .routing-text-sort { display: flex; flex-direction: column; justify-content: center; padding: 0.5mm 0; }
+    .routing { font-size: 14pt; font-weight: 700; line-height: 1.1; }
+    .routing-dsort { font-size: 10pt; font-weight: 700; margin-top: 1mm; }
     .routing-pending { font-size: 6pt; color: #aaa; font-style: italic; }
-    .sort { background: #000 !important; color: #fff !important; font-size: 12pt; font-weight: 700; padding: 0.3mm 2mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; min-width: 10mm; text-align: center; }
+    .depot { background: #000 !important; color: #fff !important; font-size: 14pt; font-weight: 900; padding: 0.3mm 3mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; min-width: 8mm; text-align: center; align-self: flex-start; margin-top: 1mm; }
     .barcode-section { padding: 1mm 2mm 0.5mm; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     .barcode-img { width: 92%; height: auto; image-rendering: pixelated; }
     .barcode-legend { font-size: 5pt; color: #444; margin-top: 0.5mm; text-align: center; letter-spacing: 0.5px; }
@@ -509,7 +506,7 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
 <body>
 ${labelsWithData.map(({
   orderName, index, total, destName, destCompany, destAddress, destAddress2,
-  destZip, destCity, destPhone, destCountry, countryPrefix, weight,
+  destZip, destCity, destPhone, countryPrefix, weight,
   trackingNumber, barCode28, serviceCode, serviceNum,
   ref1Display, ref2Display, skuDisplay,
   barcode128Url, refBarcodeUrl, aztecUrl, barcode13Legend, routing,
@@ -579,21 +576,18 @@ ${labelsWithData.map(({
     </div>
 
     <!-- Zone 11 : Plan de transport -->
-    <!-- Zone 11 : Plan de transport -->
     <div class="transport">
       <div class="transport-row1">
         ${routing?.depot
           ? `<div class="depot">${routing.depot}</div>`
           : `<div class="depot">&nbsp;&nbsp;</div>`}
         <div class="routing-text-sort">
-          ${routing?.routingText && routing?.sSort
-            ? `<div class="routing">${routing.routingText}-${routing.sSort}</div>`
-            : routing?.routingText
-            ? `<div class="routing">${routing.routingText}-</div>`
+          ${routing?.routingText
+            ? `<div class="routing">${routing.routingText}${routing.sSort ? `-${routing.sSort}` : `-`}</div>`
             : `<div class="routing-pending">Plan de transport — disponible apres whitelisting IP</div>`}
           ${routing?.dSort
             ? `<div class="routing-dsort">${routing.dSort}</div>`
-            : ""}
+            : ``}
         </div>
       </div>
     </div>
