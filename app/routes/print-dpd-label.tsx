@@ -363,7 +363,7 @@ function buildAztecContent(params: {
 async function generateBarcode128(value: string): Promise<string> {
   if (!value) return "";
   try {
-    const png = await bwipjs.toBuffer({ bcid: 'code128', text: value, scale: 3, height: 14, includetext: false });
+    const png = await bwipjs.toBuffer({ bcid: 'azteccode', text: value, scale: 6 });
     return `data:image/png;base64,${png.toString('base64')}`;
   } catch (e) { return ""; }
 }
@@ -376,15 +376,14 @@ async function generateRefBarcode128(value: string): Promise<string> {
   } catch (e) { return ""; }
 }
 
-// CORRECTION 1 : scale 6 pour un Aztec lisible
 async function generateAztecPng(value: string): Promise<string> {
   if (!value) return "";
   try {
-    const png = await bwipjs.toBuffer({ bcid: 'azteccode', text: value, scale: 6 });
+    const png = await bwipjs.toBuffer({ bcid: 'azteccode', text: value, scale: 3 });
     return `data:image/png;base64,${png.toString('base64')}`;
   } catch (e) {
     try {
-      const png = await bwipjs.toBuffer({ bcid: 'qrcode', text: value, scale: 6 });
+      const png = await bwipjs.toBuffer({ bcid: 'qrcode', text: value, scale: 3 });
       return `data:image/png;base64,${png.toString('base64')}`;
     } catch (e2) { return ""; }
   }
@@ -426,15 +425,16 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
       generateAztecPng(aztecContent),
     ]);
 
-    // CORRECTION 4 : legende = serviceNum-countryPrefix-destZip (ex: 327-FR-57100)
     let barcode13Legend: string;
-    if (label.routing?.bic3Text) {
-      barcode13Legend = label.routing.bic3Text;
-    } else if (label.barCode) {
-      barcode13Legend = `${serviceNum}-${countryPrefix}-${label.destZip}`;
-    } else {
-      barcode13Legend = barCode28;
-    }
+      if (label.routing?.bic3Text) {
+        barcode13Legend = label.routing.bic3Text;
+      } else if (label.barCode) {
+        const b = barCode28.replace(/^%/, "");
+        // Format : serviceNum-countryPrefix-destZip
+        barcode13Legend = `${serviceNum}-${countryPrefix}-${label.destZip}`;
+      } else {
+        barcode13Legend = barCode28;
+      }
 
     return { ...label, trackingNumber, barCode28, serviceCode, serviceNum, ref1Display, ref2Display, skuDisplay, countryPrefix, barcode128Url, refBarcodeUrl, aztecUrl, barcode13Legend, routing: label.routing };
   }));
@@ -489,14 +489,16 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     .service-block { text-align: right; }
     .service-code { font-size: 14pt; font-weight: 700; }
     .service-lbl { font-size: 4.5pt; color: #444; }
-    /* CORRECTION 2+3 : zone transport — routing+sSort sur meme ligne, dSort en dessous */
     .transport { border-bottom: 1px solid #000; }
     .transport-row1 { display: grid; grid-template-columns: auto 1fr; align-items: flex-start; padding: 0.5mm 2mm; gap: 2mm; min-height: 10mm; }
-    .routing-text-sort { display: flex; flex-direction: column; justify-content: center; padding: 0.5mm 0; }
-    .routing { font-size: 14pt; font-weight: 700; line-height: 1.1; }
-    .routing-dsort { font-size: 10pt; font-weight: 700; margin-top: 1mm; }
+    .transport-row2 { display: grid; grid-template-columns: auto 1fr auto; align-items: center; padding: 0.3mm 2mm; gap: 2mm; border-top: 1px solid #ccc; min-height: 5mm; }
+    .depot { background: #000 !important; color: #fff !important; font-size: 14pt; font-weight: 900; padding: 0.3mm 3mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; min-width: 8mm; text-align: center; }
+    .depot-sm { background: #000 !important; color: #fff !important; font-size: 9pt; font-weight: 700; padding: 0.3mm 2mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; min-width: 8mm; text-align: center; }
+    .routing-text-sort { display: flex; flex-direction: column; justify-content: center; }
+    .routing { font-size: 14pt; font-weight: 700; }
+    .routing-dsort { font-size: 10pt; font-weight: 700; margin-top: 0.5mm; }
     .routing-pending { font-size: 6pt; color: #aaa; font-style: italic; }
-    .depot { background: #000 !important; color: #fff !important; font-size: 14pt; font-weight: 900; padding: 0.3mm 3mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; min-width: 8mm; text-align: center; align-self: flex-start; margin-top: 1mm; }
+    .sort { background: #000 !important; color: #fff !important; font-size: 12pt; font-weight: 700; padding: 0.3mm 2mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; min-width: 10mm; text-align: center; }
     .barcode-section { padding: 1mm 2mm 0.5mm; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     .barcode-img { width: 92%; height: auto; image-rendering: pixelated; }
     .barcode-legend { font-size: 5pt; color: #444; margin-top: 0.5mm; text-align: center; letter-spacing: 0.5px; }
@@ -505,37 +507,37 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
   </style>
 </head>
 <body>
-\${labelsWithData.map(({
+${labelsWithData.map(({
   orderName, index, total, destName, destCompany, destAddress, destAddress2,
-  destZip, destCity, destPhone, countryPrefix, weight,
+  destZip, destCity, destPhone, destCountry, countryPrefix, weight,
   trackingNumber, barCode28, serviceCode, serviceNum,
   ref1Display, ref2Display, skuDisplay,
   barcode128Url, refBarcodeUrl, aztecUrl, barcode13Legend, routing,
-}) => \`  <div class="label">
-    \${isMock ? \`<div class="mock-banner">&#9888; Apercu - Mode test (sans credentials DPD)</div>\` : ""}
+}) => `  <div class="label">
+    ${isMock ? `<div class="mock-banner">&#9888; Apercu - Mode test (sans credentials DPD)</div>` : ""}
 
     <!-- Zone 1+2+3 -->
     <div class="header">
       <div class="header-dest">
-        <div class="dest-name">\${destCompany ? \`\${destCompany}<br/><span style="font-size:7pt;font-weight:400">\${destName}</span>\` : destName}</div>
+        <div class="dest-name">${destCompany ? `${destCompany}<br/><span style="font-size:7pt;font-weight:400">${destName}</span>` : destName}</div>
         <div class="dest-address">
-          \${destAddress}\${destAddress2 ? \`<br>\${destAddress2}\` : ""}<br>
-          <span class="dest-zip">\${countryPrefix}-\${destZip}</span>
-          <span class="dest-city">\${destCity.toUpperCase()}</span>
+          ${destAddress}${destAddress2 ? `<br>${destAddress2}` : ""}<br>
+          <span class="dest-zip">${countryPrefix}-${destZip}</span>
+          <span class="dest-city">${destCity.toUpperCase()}</span>
         </div>
       </div>
       <div class="header-separator"><span>Destinataire</span></div>
       <div class="header-right">
         <div class="header-exp">
           <div class="lbl">Expediteur</div>
-          <strong>\${config.senderName || "EXPEDITEUR"}</strong><br>
-          \${config.senderAddress || ""}<br>
-          \${config.senderZip || ""} \${config.senderCity || ""}
+          <strong>${config.senderName || "EXPEDITEUR"}</strong><br>
+          ${config.senderAddress || ""}<br>
+          ${config.senderZip || ""} ${config.senderCity || ""}
         </div>
         <div class="header-agence">
-          <div class="lbl">DPD-Etablissement \${agencyCode}</div>
-          \${config.senderAddress || ""}<br>
-          \${config.senderZip || ""} \${config.senderCity || ""}
+          <div class="lbl">DPD-Etablissement ${agencyCode}</div>
+          ${config.senderAddress || ""}<br>
+          ${config.senderZip || ""} ${config.senderCity || ""}
         </div>
       </div>
       <img src="https://dpd-shopify-oken.vercel.app/dpd-logo.png" alt="DPD" class="dpd-logo"/>
@@ -545,22 +547,22 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     <div class="middle">
       <div class="middle-left">
         <div class="middle-left-refs">
-          <div class="row"><span class="lbl">Contact</span><span>Tel \${destPhone || "-"}</span></div>
-          <div class="row"><span class="lbl">Ref 1</span><span>\${ref1Display}</span></div>
-          <div class="row"><span class="lbl">Ref 2</span><span>\${ref2Display}</span></div>
-          \${skuDisplay ? \`<div class="row"><span class="lbl">SKUs</span><span>\${skuDisplay}</span></div>\` : ""}
+          <div class="row"><span class="lbl">Contact</span><span>Tel ${destPhone || "-"}</span></div>
+          <div class="row"><span class="lbl">Ref 1</span><span>${ref1Display}</span></div>
+          <div class="row"><span class="lbl">Ref 2</span><span>${ref2Display}</span></div>
+          ${skuDisplay ? `<div class="row"><span class="lbl">SKUs</span><span>${skuDisplay}</span></div>` : ""}
         </div>
         <div class="middle-left-bottom">
-          <div class="ref-barcode">\${refBarcodeUrl ? \`<img src="\${refBarcodeUrl}" alt="barcode DPD"/>\` : ""}</div>
+          <div class="ref-barcode">${refBarcodeUrl ? `<img src="${refBarcodeUrl}" alt="barcode DPD"/>` : ""}</div>
           <img src="https://dpd-shopify-oken.vercel.app/dpd-predict-livraison.png" style="height:9px" alt="Predict"/>
         </div>
       </div>
       <div class="middle-right">
         <div class="colis-poids">
-          <div class="colis-badge"><div class="lbl">Colis</div><strong>\${index}/\${total}</strong></div>
-          <div class="poids-badge"><div class="lbl">Poids</div><strong>\${weight} kg</strong></div>
+          <div class="colis-badge"><div class="lbl">Colis</div><strong>${index}/${total}</strong></div>
+          <div class="poids-badge"><div class="lbl">Poids</div><strong>${weight} kg</strong></div>
         </div>
-        <div class="aztec-block">\${aztecUrl ? \`<img src="\${aztecUrl}" alt="Aztec DPD"/>\` : ""}</div>
+        <div class="aztec-block">${aztecUrl ? `<img src="${aztecUrl}" alt="Aztec DPD"/>` : ""}</div>
       </div>
     </div>
 
@@ -568,39 +570,42 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     <div class="tracking">
       <div>
         <div class="track-label">Track</div>
-        <div class="tracking-number">\${trackingNumber ? \`<span class="depot-code">\${trackingNumber.slice(0,4)}</span>\${trackingNumber.slice(4)}\` : ""}</div>
+        <div class="tracking-number">${trackingNumber ? `<span class="depot-code">${trackingNumber.slice(0,4)}</span>${trackingNumber.slice(4)}` : ""}</div>
       </div>
       <div class="service-block">
-        <div class="service-code">\${serviceCode}</div>
-        <div class="service-lbl">Service: \${serviceNum}</div>
+        <div class="service-code">${serviceCode}</div>
+        <div class="service-lbl">Service: ${serviceNum}</div>
       </div>
     </div>
 
-    <!-- Zone 11 : Plan de transport — CORRECTION 2+3 -->
+    <!-- Zone 11 : Plan de transport -->
+    <!-- Zone 11 : Plan de transport -->
     <div class="transport">
       <div class="transport-row1">
-        \${routing?.depot
-          ? \`<div class="depot">\${routing.depot}</div>\`
-          : \`<div class="depot">&nbsp;&nbsp;</div>\`}
+        ${routing?.depot
+          ? `<div class="depot">${routing.depot}</div>`
+          : `<div class="depot">&nbsp;&nbsp;</div>`}
         <div class="routing-text-sort">
-          \${routing?.routingText
-            ? \`<div class="routing">\${routing.routingText}\${routing.sSort ? \`-\${routing.sSort}\` : \`-\`}</div>\`
-            : \`<div class="routing-pending">Plan de transport — disponible apres whitelisting IP</div>\`}
-          \${routing?.dSort
-            ? \`<div class="routing-dsort">\${routing.dSort}</div>\`
-            : \`\`}
+          ${routing?.routingText && routing?.sSort
+            ? `<div class="routing">${routing.routingText}-${routing.sSort}</div>`
+            : routing?.routingText
+            ? `<div class="routing">${routing.routingText}-</div>`
+            : `<div class="routing-pending">Plan de transport — disponible apres whitelisting IP</div>`}
+          ${routing?.dSort
+            ? `<div class="routing-dsort">${routing.dSort}</div>`
+            : ""}
         </div>
       </div>
     </div>
 
     <!-- Zone 12+13 : Grand barcode DPD 28 chars + legende -->
     <div class="barcode-section">
-      \${barcode128Url ? \`<img class="barcode-img" src="\${barcode128Url}" alt="Code-barres DPD"/>\` : ""}
-      \${barcode13Legend ? \`<div class="barcode-legend">\${barcode13Legend}</div>\` : ""}
-      <div class="barcode-meta">\${new Date().toLocaleDateString("fr-FR")} \${new Date().toLocaleTimeString("fr-FR")} &middot; \${orderName} &middot; Colis \${index}/\${total}</div>
+      ${barcode128Url ? `<img class="barcode-img" src="${barcode128Url}" alt="Code-barres DPD"/>` : ""}
+      ${barcode13Legend ? `<div class="barcode-legend">${barcode13Legend}</div>` : ""}
+      <div class="barcode-meta">${new Date().toLocaleDateString("fr-FR")} ${new Date().toLocaleTimeString("fr-FR")} &middot; ${orderName} &middot; Colis ${index}/${total}</div>
     </div>
 
-  </div>\`).join("\n")}
+  </div>`).join("\n")}
 </body>
 </html>`;
 }
