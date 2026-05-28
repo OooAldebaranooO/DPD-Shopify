@@ -212,7 +212,6 @@ async function getLabelData(config: Config, barCode: string, trackingNumber: str
     });
     const xml = await response.text();
     const tag = (name: string) => xml.match(new RegExp(`<${name}>([^<]*)<\/${name}>`, 'i'))?.[1]?.trim() || "";
-    console.log("sSort:", tag("SSort"), "depot:", tag("Bic3Depot"));
     const aztecMatch    = xml.match(/<Identifier>Aztec<\/Identifier><BarcodeValue>([\s\S]*?)<\/BarcodeValue>/i);
     const bic3ValMatch  = xml.match(/<Identifier>Bic3<\/Identifier><BarcodeValue>([\s\S]*?)<\/BarcodeValue>/i);
     const bic3TextMatch = xml.match(/<Identifier>Bic3<\/Identifier><BarcodeValue>[\s\S]*?<\/BarcodeValue><BarcodeText>([\s\S]*?)<\/BarcodeText>/i);
@@ -422,7 +421,7 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     const skuDisplay     = label.sku || "";
     const countryPrefix  = getCountryPrefix(label.destCountry);
     const trackingKey   = trackingNumber ? computeTrackingKey(trackingNumber) : "";
-
+console.log("label.routing:", JSON.stringify(label.routing));
     const aztecContent = label.routing?.aztecValue
     ? label.routing.aztecValue
     : label.trackingNumber
