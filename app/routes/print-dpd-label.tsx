@@ -324,6 +324,19 @@ function buildMockLabels(
   }));
 }
 
+function computeTrackingKey(trackingNumber: string): string {
+  const digits = trackingNumber.replace(/\D/g, "");
+  const weights = [2, 3, 4, 5, 6, 7, 8, 9, 2, 3, 4, 5, 6, 7];
+  let sum = 0;
+  for (let i = 0; i < digits.length && i < 14; i++) {
+    sum += parseInt(digits[i]) * weights[i];
+  }
+  const remainder = sum % 11;
+  if (remainder === 0) return "A";
+  if (remainder === 1) return "B";
+  return String(11 - remainder);
+}
+
 function buildAztecContent(params: {
   trackingNumber: string; barCode28: string; serviceNum: string;
   destName: string; destAddress: string; destCity: string; destZip: string; destPhone: string;
@@ -403,6 +416,7 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     const ref2Display    = buildRef2(ref2Base, orderNum);
     const skuDisplay     = label.sku || "";
     const countryPrefix  = getCountryPrefix(label.destCountry);
+    const trackingKey   = trackingNumber ? computeTrackingKey(trackingNumber) : "";
 
     const aztecContent = label.routing?.aztecValue
       ? label.routing.aztecValue
@@ -435,7 +449,7 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
         : b;
     }
 
-    return { ...label, trackingNumber, barCode28, serviceCode, serviceNum, ref1Display, ref2Display, skuDisplay, countryPrefix, barcode128Url, refBarcodeUrl, aztecUrl, barcode13Legend, routing: label.routing };
+    return { ...label, trackingNumber, trackingKey, barCode28, serviceCode, serviceNum, ref1Display, ref2Display, skuDisplay, countryPrefix, barcode128Url, refBarcodeUrl, aztecUrl, barcode13Legend, routing: label.routing };
   }));
 
   return `<!DOCTYPE html>
@@ -482,24 +496,24 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     .aztec-block { padding: 1mm; display: flex; align-items: center; justify-content: center; width: 33mm; }
     .aztec-block img { width: 100%; height: auto; }
     .tracking { display: grid; grid-template-columns: 1fr auto; padding: 1mm 2mm; border-bottom: 1px solid #000; align-items: center; }
-    .track-label { font-size: 4.5pt; color: #444; }
+    .track-label { font-size: 4.5pt; color: #000; }
     .tracking-number { font-size: 16pt; font-weight: 700; letter-spacing: 1px; line-height: 1; }
     .tracking-number .depot-code { font-size: 22pt; font-weight: 900; }
     .service-block { text-align: right; }
     .service-code { font-size: 14pt; font-weight: 700; }
-    .service-lbl { font-size: 4.5pt; color: #444; }
-    .service-lbl-bottom { font-size: 12pt; color: #444; }
+    .service-lbl { font-size: 4.5pt; color: #000; }
+    .service-lbl-bottom { font-size: 12pt; font-weight: 700; }
     .transport { border-bottom: 1px solid #000; }
     .transport-row1 { display: grid; grid-template-columns: auto 1fr auto; align-items: center; padding: 0.5mm 2mm; gap: 2mm; min-height: 7mm; }
-    .transport-row2 { display: grid; grid-template-columns: auto 1fr auto; align-items: center; padding: 0.3mm 2mm; gap: 2mm; border-top: 1px solid #ccc; min-height: 5mm; grid-auto-flow: column; }
+    .transport-row2 { display: grid; padding: 0.3mm 2mm; gap: 2mm; border-top: 1px solid #ccc; min-height: 5mm; grid-auto-flow: column; justify-items: end; align-items: center; }
     .depot { background: #000 !important; color: #fff !important; font-size: 14pt; font-weight: 900; padding: 0.3mm 3mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; min-width: 8mm; text-align: center; }
     .depot-sm { background: #000 !important; color: #fff !important; font-size: 17pt; font-weight: 700; padding: 0.3mm 2mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; min-width: 8mm; text-align: center; width: 22mm; }
     .routing { font-size: 19pt; font-weight: 700; text-align: center; }
     .routing-pending { font-size: 6pt; color: #aaa; text-align: center; font-style: italic; }
-    .sort { background: #000 !important; color: #fff !important; font-size: 17pt; font-weight: 700; padding: 0.3mm 2mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; min-width: 10mm; text-align: center; }
-    .barcode-section { padding: 1mm 2mm 0.5mm; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .sort { background: #000 !important; color: #fff !important; font-size: 17pt; font-weight: 700; padding: 0.3mm 2mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; min-width: 10mm; text-align: center; width: 22mm; }
+    .barcode-section { padding: 5mm 2mm 0.5mm; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     .barcode-img { width: 95%; height: auto; image-rendering: pixelated; height:30mm; }
-    .barcode-legend { font-size: 5pt; color: #444; margin-top: 0.5mm; text-align: center; letter-spacing: 0.5px; }
+    .barcode-legend { font-size: 7pt; color: #444; margin-top: 1mm; text-align: center; letter-spacing: 0.5px; }
     .barcode-meta { font-size: 4pt; color: #888; margin-top: 0.5mm; text-align: center; }
     @media print { * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } }
   </style>
@@ -508,7 +522,7 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
 ${labelsWithData.map(({
   orderName, index, total, destName, destCompany, destAddress, destAddress2,
   destZip, destCity, destPhone, destCountry, countryPrefix, weight,
-  trackingNumber, barCode28, serviceCode, serviceNum,
+  trackingNumber, trackingKey, barCode28, serviceCode, serviceNum,
   ref1Display, ref2Display, skuDisplay,
   barcode128Url, refBarcodeUrl, aztecUrl, barcode13Legend, routing,
 }) => `  <div class="label">
@@ -568,7 +582,7 @@ ${labelsWithData.map(({
     <div class="tracking">
       <div>
         <div class="track-label">Track</div>
-        <div class="tracking-number">${trackingNumber ? `<span class="depot-code">${trackingNumber.slice(0,4)}</span>${trackingNumber.slice(4)}` : ""}</div>
+        <div class="tracking-number">${trackingNumber ? `<span class="depot-code">${trackingNumber.slice(0,4)}</span> ${trackingNumber.slice(4,8)} ${trackingNumber.slice(8,12)} ${trackingNumber.slice(12,14)} ${trackingKey}` : ""}</div>
       </div>
       <div class="service-block">
         <div class="service-code">${serviceCode}</div>
@@ -601,7 +615,6 @@ ${labelsWithData.map(({
     <div class="barcode-section">
       ${barcode128Url ? `<img class="barcode-img" src="${barcode128Url}" alt="Code-barres DPD"/>` : ""}
       ${barcode13Legend ? `<div class="barcode-legend">${barcode13Legend}</div>` : ""}
-      <div class="barcode-meta">${new Date().toLocaleDateString("fr-FR")} ${new Date().toLocaleTimeString("fr-FR")} &middot; ${orderName} &middot; Colis ${index}/${total}</div>
     </div>
 
   </div>`).join("\n")}
