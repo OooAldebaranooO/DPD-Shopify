@@ -18,39 +18,39 @@ interface OrderItem { weight: number; sku: string; title: string; }
 interface OrderPayload {
   orderName: string; shopifyOrderId: string; destName: string; destCompany: string;
   destAddress: string; destAddress2: string; destZip: string;
-  destCity: string; destPhone: string; items: OrderItem[];
+  destCity: string; destPhone: string; destCountry: string; items: OrderItem[];
 }
 interface LabelData {
   orderName: string; shopifyOrderId: string; index: number; total: number;
   destName: string; destCompany: string; destAddress: string; destAddress2: string;
-  destZip: string; destCity: string; destPhone: string;
+  destZip: string; destCity: string; destPhone: string; destCountry: string;
   weight: string; sku: string; title: string;
   labelPdf:       string | null;
-  trackingNumber: string | null; // BarcodeId DPD — zone 9 Track
-  barCode:        string | null; // BarCode 28 chars — zone 5/12/13
-  routing:        RoutingData | null; // Zone 11 plan de transport
+  trackingNumber: string | null;
+  barCode:        string | null;
+  routing:        RoutingData | null;
   fromApi: boolean;
 }
 interface RoutingData {
-  depot:        string; // Bic3Depot — centre livreur (bloc noir gauche)
-  bic3Number:   string; // Bic3Number — numéro de routage central
-  sSort:        string; // SSort — code tri (bloc noir droite)
-  dSort:        string; // DSort — tournée
-  routingText:  string; // Routingtext ex: FR-DPD-1022
-  serviceText:  string; // Servicetext ex: D-B2C
-  aztecValue:   string | null; // Valeur du code Aztec DPD officiel
-  bic3Text:     string; // BarcodeText zone 13
+  depot:        string;
+  bic3Number:   string;
+  sSort:        string;
+  dSort:        string;
+  routingText:  string;
+  serviceText:  string;
+  aztecValue:   string | null;
+  bic3Text:     string;
 }
 
 interface SoapParams {
   destName: string; destCompany: string; destAddress: string; destAddress2: string;
-  destZip: string; destCity: string; destPhone: string;
+  destZip: string; destCity: string; destPhone: string; destCountry: string;
   orderName: string; shopifyOrderId: string; ref1: string; ref2: string; weight: string; shippingDate: string;
 }
 interface OrderParams {
   orderName: string; shopifyOrderId: string; count: number;
   destName: string; destCompany: string; destAddress: string; destAddress2: string;
-  destZip: string; destCity: string; destPhone: string;
+  destZip: string; destCity: string; destPhone: string; destCountry: string;
   weights: string; skusParam: string; titlesParam: string;
 }
 
@@ -85,6 +85,7 @@ export async function loader({ request }: { request: Request }) {
             destName: order.destName, destCompany: order.destCompany,
             destAddress: order.destAddress, destAddress2: order.destAddress2,
             destZip: order.destZip, destCity: order.destCity, destPhone: order.destPhone,
+            destCountry: order.destCountry || "France",
             weight: Math.max(0.01, item.weight).toFixed(2), sku: item.sku, title: item.title,
             labelPdf: null, trackingNumber: null, barCode: null, routing: null, fromApi: false,
           }));
@@ -102,19 +103,20 @@ export async function loader({ request }: { request: Request }) {
     const destZip        = url.searchParams.get("destZip")        || "";
     const destCity       = url.searchParams.get("destCity")       || "";
     const destPhone      = url.searchParams.get("destPhone")      || "";
+    const destCountry    = url.searchParams.get("destCountry")    || "France";
     const weights        = url.searchParams.get("weights")        || "1";
     const skusParam      = url.searchParams.get("skus")           || "";
     const titlesParam    = url.searchParams.get("titles")         || "";
 
     if (!isMock) {
       try {
-        labels = await callDpdEprint(config, { orderName, shopifyOrderId, count, destName, destCompany, destAddress, destAddress2, destZip, destCity, destPhone, weights, skusParam, titlesParam });
+        labels = await callDpdEprint(config, { orderName, shopifyOrderId, count, destName, destCompany, destAddress, destAddress2, destZip, destCity, destPhone, destCountry, weights, skusParam, titlesParam });
       } catch (e) {
         console.error("Erreur EPrint:", (e as Error).message);
-        labels = buildMockLabels(orderName, shopifyOrderId, count, destName, destCompany, destAddress, destAddress2, destZip, destCity, destPhone, weights, skusParam, titlesParam);
+        labels = buildMockLabels(orderName, shopifyOrderId, count, destName, destCompany, destAddress, destAddress2, destZip, destCity, destPhone, destCountry, weights, skusParam, titlesParam);
       }
     } else {
-      labels = buildMockLabels(orderName, shopifyOrderId, count, destName, destCompany, destAddress, destAddress2, destZip, destCity, destPhone, weights, skusParam, titlesParam);
+      labels = buildMockLabels(orderName, shopifyOrderId, count, destName, destCompany, destAddress, destAddress2, destZip, destCity, destPhone, destCountry, weights, skusParam, titlesParam);
     }
   }
 
@@ -124,10 +126,9 @@ export async function loader({ request }: { request: Request }) {
 }
 
 async function soapRequest(config: Config, p: SoapParams): Promise<string> {
-  // Passe par le proxy OVH (IP fixe 5.135.23.164 whitelistée chez DPD)
-  // Si PROXY_URL n'est pas défini, appel direct (fallback)
   const WS_URL = process.env.PROXY_URL || "https://e-station.cargonet.software/dpd-eprintwebservice/eprintwebservice.asmx";
   const proxyToken = process.env.PROXY_SECRET || "";
+  const countryPrefix = getCountryPrefix(p.destCountry);
   const isMobile = isMobilePhone(p.destPhone);
   const predictService = isMobile
     ? `<services><contact><type>Predict</type><sms>${escapeXml(p.destPhone)}</sms></contact></services>`
@@ -145,7 +146,7 @@ async function soapRequest(config: Config, p: SoapParams): Promise<string> {
           <name>${escapeXml(p.destName || p.destCompany)}</name>
           <street>${escapeXml(p.destAddress)}</street>
           ${p.destAddress2 ? `<houseNo>${escapeXml(p.destAddress2)}</houseNo>` : ""}
-          <countryPrefix>FR</countryPrefix>
+          <countryPrefix>${countryPrefix}</countryPrefix>
           <zipCode>${escapeXml(p.destZip)}</zipCode>
           <city>${escapeXml(p.destCity)}</city>
           <phoneNumber>${escapeXml(p.destPhone)}</phoneNumber>
@@ -178,9 +179,7 @@ async function parseShipmentResponse(xml: string): Promise<{ trackingNumber: str
   if (errMatch) return { trackingNumber: null, barCode: null, error: errMatch[1] };
   const trackMatch = xml.match(/<BarcodeId>([\s\S]*?)<\/BarcodeId>/i) || xml.match(/<parcelnumber>([\s\S]*?)<\/parcelnumber>/i);
   const barMatch   = xml.match(/<BarCode>([\s\S]*?)<\/BarCode>/i);
-  // Normalise le BarCode : retire le % initial, ajoute X clé de contrôle en fin
   const rawBar = barMatch?.[1]?.trim() || null;
-  // Garde le % pour l'encodage barcode, ajoute X clé de contrôle
   const barCode = rawBar ? (rawBar.startsWith("%") ? rawBar : "%" + rawBar) : null;
   return { trackingNumber: trackMatch?.[1]?.trim() || null, barCode, error: null };
 }
@@ -213,21 +212,14 @@ async function getLabelData(config: Config, barCode: string, trackingNumber: str
     });
     const xml = await response.text();
     const tag = (name: string) => xml.match(new RegExp(`<${name}>([^<]*)<\/${name}>`, 'i'))?.[1]?.trim() || "";
-    // Aztec : dans BarcodeData imbriqué
-    const aztecMatch = xml.match(/<Identifier>Aztec<\/Identifier><BarcodeValue>([\s\S]*?)<\/BarcodeValue>/i);
-    // Bic3 : BarcodeValue et BarcodeText
+    const aztecMatch    = xml.match(/<Identifier>Aztec<\/Identifier><BarcodeValue>([\s\S]*?)<\/BarcodeValue>/i);
     const bic3ValMatch  = xml.match(/<Identifier>Bic3<\/Identifier><BarcodeValue>([\s\S]*?)<\/BarcodeValue>/i);
     const bic3TextMatch = xml.match(/<Identifier>Bic3<\/Identifier><BarcodeValue>[\s\S]*?<\/BarcodeValue><BarcodeText>([\s\S]*?)<\/BarcodeText>/i);
-    // Decode entités XML dans aztecValue
     const rawAztec = aztecMatch?.[1]?.trim() || null;
     const aztecDecoded = rawAztec
       ? rawAztec
           .replace(/&gt;/g, ">").replace(/&lt;/g, "<").replace(/&amp;/g, "&").replace(/&quot;/g, '"')
-          // Convertit les séparateurs GS1 encodés en vrais caractères de contrôle
-          .replace(/_1D/g, "")  // GS — Group Separator
-          .replace(/_1E/g, "")  // RS — Record Separator
-          .replace(/_1F/g, "")  // US — Unit Separator
-          .replace(/_04/g, "")  // EOT
+          .replace(/_1D/g, "").replace(/_1E/g, "").replace(/_1F/g, "").replace(/_04/g, "")
       : null;
     return {
       depot:       tag("Bic3Depot"),
@@ -260,6 +252,7 @@ async function callDpdEprint(config: Config, order: OrderParams): Promise<LabelD
       destName: order.destName, destCompany: order.destCompany,
       destAddress: order.destAddress, destAddress2: order.destAddress2,
       destZip: order.destZip, destCity: order.destCity, destPhone: order.destPhone,
+      destCountry: order.destCountry,
       orderName: order.orderName, shopifyOrderId: order.shopifyOrderId,
       ref1: order.shopifyOrderId || order.orderName,
       ref2: buildRef2(ref2Base, order.orderName),
@@ -267,15 +260,36 @@ async function callDpdEprint(config: Config, order: OrderParams): Promise<LabelD
     });
     const { trackingNumber, barCode, error } = await parseShipmentResponse(xml);
     if (error) throw new Error(error);
-    // Récupère les données de routage (zone 11) via GetLabelData
     const routing = (barCode && trackingNumber) ? await getLabelData(config, barCode, trackingNumber) : null;
-    labels.push({ orderName: order.orderName, shopifyOrderId: order.shopifyOrderId, index: i, total: order.count, destName: order.destName, destCompany: order.destCompany, destAddress: order.destAddress, destAddress2: order.destAddress2, destZip: order.destZip, destCity: order.destCity, destPhone: order.destPhone, weight: itemWeight, sku: itemSku, title: itemTitle, labelPdf: null, trackingNumber, barCode, routing, fromApi: true });
+    labels.push({
+      orderName: order.orderName, shopifyOrderId: order.shopifyOrderId,
+      index: i, total: order.count,
+      destName: order.destName, destCompany: order.destCompany,
+      destAddress: order.destAddress, destAddress2: order.destAddress2,
+      destZip: order.destZip, destCity: order.destCity, destPhone: order.destPhone,
+      destCountry: order.destCountry,
+      weight: itemWeight, sku: itemSku, title: itemTitle,
+      labelPdf: null, trackingNumber, barCode, routing, fromApi: true,
+    });
   }
   return labels;
 }
 
+function getCountryPrefix(country: string): string {
+  const c = (country || "").toLowerCase();
+  if (c.includes("allem") || c.includes("deutsch") || c.includes("germany")) return "DE";
+  if (c.includes("belgi")) return "BE";
+  if (c.includes("espagne") || c.includes("spain")) return "ES";
+  if (c.includes("italie") || c.includes("italy")) return "IT";
+  if (c.includes("pays-bas") || c.includes("netherlands")) return "NL";
+  if (c.includes("luxembourg")) return "LU";
+  if (c.includes("suisse") || c.includes("switzerland")) return "CH";
+  if (c.includes("autriche") || c.includes("austria")) return "AT";
+  if (c.includes("portugal")) return "PT";
+  if (c.includes("pologne") || c.includes("poland")) return "PL";
+  return "FR";
+}
 
-// Vérifie si le numéro est un mobile FR (06/07) ou international (+336/+337)
 function isMobilePhone(phone: string): boolean {
   if (!phone) return false;
   const clean = phone.replace(/[\s.\-]/g, "");
@@ -286,26 +300,30 @@ function escapeXml(str: string): string {
   return String(str || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 }
 
-// Évite le doublon LIVEDECO_LIVEDECO_xxx si orderName contient déjà le préfixe
 function buildRef2(prefix: string, orderName: string): string {
   const name = orderName.replace("#", "");
   return name.toUpperCase().startsWith(prefix) ? name : `${prefix}_${name}`;
 }
 
-function buildMockLabels(orderName: string, shopifyOrderId: string, count: number, destName: string, destCompany: string, destAddress: string, destAddress2: string, destZip: string, destCity: string, destPhone: string, weights: string, skusParam: string, titlesParam: string): LabelData[] {
+function buildMockLabels(
+  orderName: string, shopifyOrderId: string, count: number,
+  destName: string, destCompany: string, destAddress: string, destAddress2: string,
+  destZip: string, destCity: string, destPhone: string, destCountry: string,
+  weights: string, skusParam: string, titlesParam: string
+): LabelData[] {
   const weightsList = String(weights || "1").split(",").map(w => parseFloat(w) || 0);
   const skusList    = String(skusParam  || "").split("|").map(s => decodeURIComponent(s));
   const titlesList  = String(titlesParam|| "").split("|").map(s => decodeURIComponent(s));
   return Array.from({ length: count }, (_, i) => ({
-    orderName, shopifyOrderId, index: i + 1, total: count, destName, destCompany, destAddress, destAddress2, destZip, destCity, destPhone,
+    orderName, shopifyOrderId, index: i + 1, total: count,
+    destName, destCompany, destAddress, destAddress2,
+    destZip, destCity, destPhone, destCountry,
     weight: Math.max(0.01, weightsList[i] ?? weightsList[0] ?? 1).toFixed(2),
     sku: skusList[i] ?? "", title: titlesList[i] ?? "",
     labelPdf: null, trackingNumber: null, barCode: null, routing: null, fromApi: false,
   }));
 }
 
-// Construit le contenu du code Aztec DPD selon le format GS1
-// [)>0 + agence3 + CP5 + ISO3 + service3 + BarcodeId14 + GEOP + 139 + ref1 + index/total + poids + N + adresse + ...
 function buildAztecContent(params: {
   trackingNumber: string; barCode28: string; serviceNum: string;
   destName: string; destAddress: string; destCity: string; destZip: string; destPhone: string;
@@ -316,38 +334,26 @@ function buildAztecContent(params: {
   const { trackingNumber, serviceNum, destName, destAddress, destCity, destZip,
           destPhone, ref2, index, total, weight, senderName, senderAddress,
           senderZip, senderCity, shopifyOrderId } = params;
-
-  // Agence livreur = 3 premiers chiffres du trackingNumber (ex: 1038 -> 103)
   const agenceDest = trackingNumber ? trackingNumber.slice(0, 3) : "103";
-  // CP dest sur 5 chars
   const cp5 = destZip.replace(/\D/g, "").slice(0, 5).padStart(5, "0");
-  // BarcodeId = trackingNumber (14 chars: agence4 + numexp10)
   const barcodeId = trackingNumber || "";
-  // Poids formaté ex: 04.00KG
   const poidsStr = parseFloat(weight).toFixed(2).padStart(5, "0") + "KG";
-  // Index/total ex: 001/001
   const idx = String(index).padStart(3, "0");
   const tot = String(total).padStart(3, "0");
-
   const lines = [
     `[)>0`,
     `${agenceDest}${cp5}250${serviceNum}${barcodeId}`,
-    `GEOP`,
-    `139`,
+    `GEOP`, `139`,
     shopifyOrderId,
     `${idx}/${tot}`,
-    poidsStr,
-    `N`,
+    poidsStr, `N`,
     destAddress.toUpperCase(),
     destCity.toUpperCase(),
     ` ${destName.toUpperCase()}`,
     `07G03000~~~`,
-    destPhone,
-    destPhone,
+    destPhone, destPhone,
     `F~${cp5}`,
-    ref2,
-    ref2,
-    `007D`,
+    ref2, ref2, `007D`,
     `07S011${senderName.toUpperCase()}${senderAddress.toUpperCase()}${senderCity.toUpperCase()}${senderZip}250`,
     `07S0401${senderName.toUpperCase()}${senderAddress.toUpperCase()}F~${senderZip}~${senderCity.toUpperCase()}`,
   ];
@@ -388,54 +394,37 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
   const ref2Base   = (config.senderName2 || "LIVEDECO")!.toUpperCase().replace(/\s/g, "_");
 
   const labelsWithData = await Promise.all(labels.map(async (label) => {
-    // Zone 9 Track = BarcodeId DPD (ex: 13735327170900)
     const trackingNumber = label.trackingNumber;
-    // Zone 5/12/13 = BarCode 28 chars DPD (API) — fallback sur shopifyOrderId en mode mock
     const barCode28      = label.barCode || label.shopifyOrderId || "";
-    // Zone 10
     const serviceCode    = parseFloat(label.weight) <= 1 ? 'XD-B2C' : 'D-B2C';
     const serviceNum     = parseFloat(label.weight) <= 1 ? '328' : '327';
-    // Ref 1 = ID numérique Shopify (ex: 13735327170900)
     const ref1Display    = label.shopifyOrderId || label.orderName;
-    // Ref 2 = LIVEDECO_95693 — sans doublon si orderName contient déjà le préfixe
     const orderNum       = label.orderName.replace("#", "");
     const ref2Display    = buildRef2(ref2Base, orderNum);
-    // SKUs
     const skuDisplay     = label.sku || "";
+    const countryPrefix  = getCountryPrefix(label.destCountry);
 
-    // Contenu Aztec : utilise la valeur officielle DPD si disponible
     const aztecContent = label.routing?.aztecValue
       ? label.routing.aztecValue
       : label.trackingNumber
       ? buildAztecContent({
           trackingNumber: label.trackingNumber,
-          barCode28,
-          serviceNum,
-          destName: label.destName,
-          destAddress: label.destAddress,
-          destCity: label.destCity,
-          destZip: label.destZip,
-          destPhone: label.destPhone,
-          ref2: ref2Display,
-          index: label.index,
-          total: label.total,
-          weight: label.weight,
-          senderName: config.senderName || "",
-          senderAddress: config.senderAddress || "",
-          senderZip: config.senderZip || "",
-          senderCity: config.senderCity || "",
+          barCode28, serviceNum,
+          destName: label.destName, destAddress: label.destAddress,
+          destCity: label.destCity, destZip: label.destZip, destPhone: label.destPhone,
+          ref2: ref2Display, index: label.index, total: label.total, weight: label.weight,
+          senderName: config.senderName || "", senderAddress: config.senderAddress || "",
+          senderZip: config.senderZip || "", senderCity: config.senderCity || "",
           shopifyOrderId: label.shopifyOrderId,
         })
       : barCode28;
 
     const [barcode128Url, refBarcodeUrl, aztecUrl] = await Promise.all([
-      generateBarcode128(barCode28),       // Zone 12 — grand barcode DPD en bas
-      generateRefBarcode128(barCode28),    // Zone 8 — petit barcode DPD (même que zone 12)
-      generateAztecPng(aztecContent),      // Zone 5 — Aztec DPD avec toutes les données
+      generateBarcode128(barCode28),
+      generateRefBarcode128(barCode28),
+      generateAztecPng(aztecContent),
     ]);
 
-    // Zone 13 — légende sous le grand barcode (formatée si 28 chars réels, brut si mock)
-    // Légende zone 13 : utilise BarcodeText DPD officiel si disponible
     let barcode13Legend: string;
     if (label.routing?.bic3Text) {
       barcode13Legend = label.routing.bic3Text;
@@ -446,7 +435,7 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
         : b;
     }
 
-    return { ...label, trackingNumber, barCode28, serviceCode, serviceNum, ref1Display, ref2Display, skuDisplay, barcode128Url, refBarcodeUrl, aztecUrl, barcode13Legend, routing: label.routing };
+    return { ...label, trackingNumber, barCode28, serviceCode, serviceNum, ref1Display, ref2Display, skuDisplay, countryPrefix, barcode128Url, refBarcodeUrl, aztecUrl, barcode13Legend, routing: label.routing };
   }));
 
   return `<!DOCTYPE html>
@@ -517,7 +506,7 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
 <body>
 ${labelsWithData.map(({
   orderName, index, total, destName, destCompany, destAddress, destAddress2,
-  destZip, destCity, destPhone, weight,
+  destZip, destCity, destPhone, destCountry, countryPrefix, weight,
   trackingNumber, barCode28, serviceCode, serviceNum,
   ref1Display, ref2Display, skuDisplay,
   barcode128Url, refBarcodeUrl, aztecUrl, barcode13Legend, routing,
@@ -530,7 +519,7 @@ ${labelsWithData.map(({
         <div class="dest-name">${destCompany ? `${destCompany}<br/><span style="font-size:7pt;font-weight:400">${destName}</span>` : destName}</div>
         <div class="dest-address">
           ${destAddress}${destAddress2 ? `<br>${destAddress2}` : ""}<br>
-          <span class="dest-zip">F-${destZip}</span>
+          <span class="dest-zip">${countryPrefix}-${destZip}</span>
           <span class="dest-city">${destCity.toUpperCase()}</span>
         </div>
       </div>
@@ -560,7 +549,6 @@ ${labelsWithData.map(({
           <div class="row"><span class="lbl">Ref 2</span><span>${ref2Display}</span></div>
           ${skuDisplay ? `<div class="row"><span class="lbl">SKUs</span><span>${skuDisplay}</span></div>` : ""}
         </div>
-        <!-- Zone 8 : barcode DPD (barCode28) + logo Predict -->
         <div class="middle-left-bottom">
           <div class="ref-barcode">${refBarcodeUrl ? `<img src="${refBarcodeUrl}" alt="barcode DPD"/>` : ""}</div>
           <img src="https://dpd-shopify-oken.vercel.app/dpd-predict-livraison.png" style="height:9px" alt="Predict"/>
@@ -571,7 +559,6 @@ ${labelsWithData.map(({
           <div class="colis-badge"><div class="lbl">Colis</div><strong>${index}/${total}</strong></div>
           <div class="poids-badge"><div class="lbl">Poids</div><strong>${weight} kg</strong></div>
         </div>
-        <!-- Zone 5 : Aztec DPD -->
         <div class="aztec-block">${aztecUrl ? `<img src="${aztecUrl}" alt="Aztec DPD"/>` : ""}</div>
       </div>
     </div>
@@ -614,9 +601,7 @@ ${labelsWithData.map(({
 
     <!-- Zone 12+13 : Grand barcode DPD 28 chars + legende -->
     <div class="barcode-section">
-      ${barcode128Url
-        ? `<img class="barcode-img" src="${barcode128Url}" alt="Code-barres DPD"/>`
-        : ""}
+      ${barcode128Url ? `<img class="barcode-img" src="${barcode128Url}" alt="Code-barres DPD"/>` : ""}
       ${barcode13Legend ? `<div class="barcode-legend">${barcode13Legend}</div>` : ""}
       <div class="barcode-meta">${new Date().toLocaleDateString("fr-FR")} ${new Date().toLocaleTimeString("fr-FR")} &middot; ${orderName} &middot; Colis ${index}/${total}</div>
     </div>
