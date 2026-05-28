@@ -470,10 +470,10 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     @page { size: 105mm 148mm; margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { width: 105mm; margin: 0; padding: 0; font-family: Arial, sans-serif; color: #000; background: #fff; }
-    .label { width: 105mm; height: 148mm; display: flex; flex-direction: column; overflow: hidden; page-break-after: always; }
+    .label { width: 105mm; height: 148mm; display: flex; flex-direction: column; overflow: hidden; page-break-after: always; border: 3px solid #000; }
     .label:last-child { page-break-after: auto; }
     .mock-banner { background: #fff3cd; border-bottom: 1px solid #ffc107; padding: 0.8mm 2mm; font-size: 5pt; text-align: center; }
-    .header { display: grid; grid-template-columns: 1fr 5mm 1fr; border-bottom: 1.5px solid #000; min-height: 20mm; position: relative; }
+    .header { display: grid; grid-template-columns: 1fr 5mm 0.7fr; border-bottom: 1.5px solid #000; min-height: 20mm; position: relative; }
     .header-dest { padding: 1.5mm 2mm; }
     .dest-name { font-size: 9pt; font-weight: 700; line-height: 1.2; margin-bottom: 1mm; text-transform: uppercase; }
     .dest-address { font-size: 7pt; line-height: 1.5; }
