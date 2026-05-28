@@ -254,6 +254,7 @@ async function callDpdEprint(config: Config, order: OrderParams): Promise<LabelD
     if (error) throw new Error(error);
     // Récupère les données de routage (zone 11) via GetLabelData
     const routing = barCode ? await getLabelData(config, barCode) : null;
+    console.log("[DPD] routing:", JSON.stringify(routing));
     labels.push({ orderName: order.orderName, shopifyOrderId: order.shopifyOrderId, index: i, total: order.count, destName: order.destName, destCompany: order.destCompany, destAddress: order.destAddress, destAddress2: order.destAddress2, destZip: order.destZip, destCity: order.destCity, destPhone: order.destPhone, weight: itemWeight, sku: itemSku, title: itemTitle, labelPdf: null, trackingNumber, barCode, routing, fromApi: true });
   }
   return labels;
