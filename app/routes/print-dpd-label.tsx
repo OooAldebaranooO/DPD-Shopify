@@ -342,17 +342,19 @@ function buildAztecContent(params: {
   destName: string; destAddress: string; destCity: string; destZip: string; destPhone: string;
   ref2: string; index: number; total: number; weight: string;
   senderName: string; senderAddress: string; senderZip: string; senderCity: string;
-  shopifyOrderId: string;
+  shopifyOrderId: string; sSort: string; agencyCode: string;
 }): string {
   const { trackingNumber, serviceNum, destName, destAddress, destCity, destZip,
           destPhone, ref2, index, total, weight, senderName, senderAddress,
-          senderZip, senderCity, shopifyOrderId } = params;
+          senderZip, senderCity, shopifyOrderId, sSort, agencyCode } = params;
+
   const agenceDest = trackingNumber ? trackingNumber.slice(0, 3) : "103";
-  const cp5 = destZip.replace(/\D/g, "").slice(0, 5).padStart(5, "0");
-  const barcodeId = trackingNumber || "";
-  const poidsStr = parseFloat(weight).toFixed(2).padStart(5, "0") + "KG";
-  const idx = String(index).padStart(3, "0");
-  const tot = String(total).padStart(3, "0");
+  const cp5        = destZip.replace(/\D/g, "").slice(0, 5).padStart(5, "0");
+  const barcodeId  = trackingNumber || "";
+  const poidsStr   = parseFloat(weight).toFixed(2).padStart(5, "0") + "KG";
+  const idx        = String(index).padStart(3, "0");
+  const tot        = String(total).padStart(3, "0");
+
   const lines = [
     `[)>0`,
     `${agenceDest}${cp5}250${serviceNum}${barcodeId}`,
@@ -366,7 +368,9 @@ function buildAztecContent(params: {
     `07G03000~~~`,
     destPhone, destPhone,
     `F~${cp5}`,
-    ref2, ref2, `007D`,
+    ref2, ref2,
+    `007D`,
+    `${agencyCode}015380${sSort}`,
     `07S011${senderName.toUpperCase()}${senderAddress.toUpperCase()}${senderCity.toUpperCase()}${senderZip}250`,
     `07S0401${senderName.toUpperCase()}${senderAddress.toUpperCase()}F~${senderZip}~${senderCity.toUpperCase()}`,
   ];
@@ -419,19 +423,21 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     const trackingKey   = trackingNumber ? computeTrackingKey(trackingNumber) : "";
 
     const aztecContent = label.routing?.aztecValue
-      ? label.routing.aztecValue
-      : label.trackingNumber
-      ? buildAztecContent({
-          trackingNumber: label.trackingNumber,
-          barCode28, serviceNum,
-          destName: label.destName, destAddress: label.destAddress,
-          destCity: label.destCity, destZip: label.destZip, destPhone: label.destPhone,
-          ref2: ref2Display, index: label.index, total: label.total, weight: label.weight,
-          senderName: config.senderName || "", senderAddress: config.senderAddress || "",
-          senderZip: config.senderZip || "", senderCity: config.senderCity || "",
-          shopifyOrderId: label.shopifyOrderId,
-        })
-      : barCode28;
+    ? label.routing.aztecValue
+    : label.trackingNumber
+    ? buildAztecContent({
+        trackingNumber: label.trackingNumber,
+        barCode28, serviceNum,
+        destName: label.destName, destAddress: label.destAddress,
+        destCity: label.destCity, destZip: label.destZip, destPhone: label.destPhone,
+        ref2: ref2Display, index: label.index, total: label.total, weight: label.weight,
+        senderName: config.senderName || "", senderAddress: config.senderAddress || "",
+        senderZip: config.senderZip || "", senderCity: config.senderCity || "",
+        shopifyOrderId: label.shopifyOrderId,
+        sSort: label.routing?.sSort || "",        // ← ajout
+        agencyCode: config.agencyCode || "038",   // ← ajout
+      })
+    : barCode28;
 
     const [barcode128Url, refBarcodeUrl, aztecUrl] = await Promise.all([
       generateBarcode128(barCode28),
@@ -511,7 +517,7 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     .routing { font-size: 19pt; font-weight: 700; text-align: center; }
     .routing-pending { font-size: 6pt; color: #aaa; text-align: center; font-style: italic; }
     .sort { background: #000 !important; color: #fff !important; font-size: 17pt; font-weight: 700; padding: 0.3mm 2mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; min-width: 10mm; text-align: center; width: 22mm; }
-    .barcode-section { padding: 5mm 2mm 0.5mm; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .barcode-section { padding: 0mm 2mm 0.5mm; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     .barcode-img { width: 95%; height: auto; image-rendering: pixelated; height:30mm; }
     .barcode-legend { font-size: 7pt; color: #444; margin-top: 1mm; text-align: center; letter-spacing: 0.5px; margin-bottom: 5mm; }
     .barcode-meta { font-size: 4pt; color: #888; margin-top: 0.5mm; text-align: center; }
