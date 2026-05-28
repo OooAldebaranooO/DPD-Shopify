@@ -210,7 +210,6 @@ async function getLabelData(config: Config, barCode: string, trackingNumber: str
       body,
     });
     const xml = await response.text();
-    console.log("[GetLabelData] xml:", xml.slice(0, 500));
     const tag = (name: string) => xml.match(new RegExp(`<${name}>([\s\S]*?)<\/${name}>`, 'i'))?.[1]?.trim() || "";
     // Aztec BarcodeValue
     const aztecMatch = xml.match(/<Identifier>Aztec<\/Identifier>\s*<BarcodeValue>([\s\S]*?)<\/BarcodeValue>/i);
@@ -255,7 +254,6 @@ async function callDpdEprint(config: Config, order: OrderParams): Promise<LabelD
     if (error) throw new Error(error);
     // Récupère les données de routage (zone 11) via GetLabelData
     const routing = (barCode && trackingNumber) ? await getLabelData(config, barCode, trackingNumber) : null;
-    console.log("[DPD] routing:", JSON.stringify(routing));
     labels.push({ orderName: order.orderName, shopifyOrderId: order.shopifyOrderId, index: i, total: order.count, destName: order.destName, destCompany: order.destCompany, destAddress: order.destAddress, destAddress2: order.destAddress2, destZip: order.destZip, destCity: order.destCity, destPhone: order.destPhone, weight: itemWeight, sku: itemSku, title: itemTitle, labelPdf: null, trackingNumber, barCode, routing, fromApi: true });
   }
   return labels;
@@ -544,8 +542,8 @@ ${labelsWithData.map(({
         <div class="middle-left-refs">
           <div class="row"><span class="lbl">Contact</span><span>Tel ${destPhone || "-"}</span></div>
           <div class="row"><span class="lbl">Ref 1</span><span>${ref1Display}</span></div>
-          ${skuDisplay ? `<div class="row"><span class="lbl">SKUs</span><span>${skuDisplay}</span></div>` : ""}
           <div class="row"><span class="lbl">Ref 2</span><span>${ref2Display}</span></div>
+          ${skuDisplay ? `<div class="row"><span class="lbl">SKUs</span><span>${skuDisplay}</span></div>` : ""}
         </div>
         <!-- Zone 8 : barcode DPD (barCode28) + logo Predict -->
         <div class="middle-left-bottom">
@@ -583,7 +581,7 @@ ${labelsWithData.map(({
           : `<div class="depot">&nbsp;&nbsp;</div>`}
         ${routing?.routingText
           ? `<div class="routing">${routing.routingText}-</div>`
-          : `<div class="routing-pending">Plan de transport — disponible apres whitelisting IP</div>`}
+          : `<div class="routing-pending">Plan de transport en attente</div>`}
         ${routing?.sSort
           ? `<div class="sort">${routing.sSort}</div>`
           : `<div class="sort">&nbsp;&nbsp;&nbsp;&nbsp;</div>`}
