@@ -27,14 +27,14 @@ interface Colis {
 function Extension() {
   const { data } = shopify;
 
-  const [orderName, setOrderName]   = useState<string | null>(null);
+  const [orderName, setOrderName]         = useState<string | null>(null);
   const [shopifyOrderId, setShopifyOrderId] = useState<string | null>(null);
-  const [lines, setLines]           = useState<LineItem[]>([]);
-  const [colis, setColis]           = useState<Colis[]>([]);
-  const [printUrl, setPrintUrl]     = useState<string | null>(null);
-  const [error, setError]           = useState<string | null>(null);
-  const [isLoading, setIsLoading]   = useState(true);
-  const [addr, setAddr]             = useState<any>(null);
+  const [lines, setLines]                 = useState<LineItem[]>([]);
+  const [colis, setColis]                 = useState<Colis[]>([]);
+  const [printUrl, setPrintUrl]           = useState<string | null>(null);
+  const [error, setError]                 = useState<string | null>(null);
+  const [isLoading, setIsLoading]         = useState(true);
+  const [addr, setAddr]                   = useState<any>(null);
 
   useEffect(() => {
     async function loadOrder() {
@@ -75,7 +75,6 @@ function Extension() {
           setError("Impossible de charger la commande."); setIsLoading(false); return;
         }
 
-        // ID numérique Shopify (ex: 13735327170900) extrait de gid://shopify/Order/13735327170900
         const numericId = order.id.split("/").pop() || "";
 
         const loadedLines: LineItem[] = (order.lineItems?.edges || [])
@@ -140,20 +139,20 @@ function Extension() {
     const skusParam    = colisItems.map(i => encodeURIComponent(i.sku)).join("|");
 
     const url = `https://dpd-shopify-oken.vercel.app/print-dpd-label` +
-    `?orderName=${encodeURIComponent(orderName ?? "")}` +
-    `&shopifyOrderId=${encodeURIComponent(shopifyOrderId ?? "")}` +
-    `&count=${count}` +
-    `&destName=${encodeURIComponent(destName)}` +
-    `&destCompany=${encodeURIComponent(destCompany)}` +
-    `&destAddress=${encodeURIComponent(addr?.address1 || "")}` +
-    `&destAddress2=${encodeURIComponent(addr?.address2 || "")}` +
-    `&destZip=${encodeURIComponent(addr?.zip || "")}` +
-    `&destCity=${encodeURIComponent(addr?.city || "")}` +
-    `&destPhone=${encodeURIComponent(addr?.phone || "")}` +
-    `&destCountry=${encodeURIComponent(addr?.country || "France")}` +
-    `&weights=${encodeURIComponent(weightsParam)}` +
-    `&skus=${encodeURIComponent(skusParam)}` +
-    `&titles=${encodeURIComponent(skusParam)}`;
+      `?orderName=${encodeURIComponent(orderName ?? "")}` +
+      `&shopifyOrderId=${encodeURIComponent(shopifyOrderId ?? "")}` +
+      `&count=${count}` +
+      `&destName=${encodeURIComponent(destName)}` +
+      `&destCompany=${encodeURIComponent(destCompany)}` +
+      `&destAddress=${encodeURIComponent(addr?.address1 || "")}` +
+      `&destAddress2=${encodeURIComponent(addr?.address2 || "")}` +
+      `&destZip=${encodeURIComponent(addr?.zip || "")}` +
+      `&destCity=${encodeURIComponent(addr?.city || "")}` +
+      `&destPhone=${encodeURIComponent(addr?.phone || "")}` +
+      `&destCountry=${encodeURIComponent(addr?.country || "France")}` +
+      `&weights=${encodeURIComponent(weightsParam)}` +
+      `&skus=${encodeURIComponent(skusParam)}` +
+      `&titles=${encodeURIComponent(skusParam)}`;
 
     setPrintUrl(url);
   }, [colis, lines, addr, orderName, shopifyOrderId]);
@@ -231,10 +230,11 @@ function Extension() {
             )}
 
             {colis.map((c, colisIndex) => (
-              <s-box padding="base" background="surface-secondary">
+              <s-box padding="base" background="surface-secondary" border-radius="base">
                 <s-stack direction="block" gap="small">
+
                   <s-stack direction="inline" gap="base">
-                    <s-text><strong>📦 Colis {colisIndex + 1}/{colis.length}</strong></s-text>
+                    <s-text><strong>📦 Colis {colisIndex + 1} / {colis.length}</strong></s-text>
                     {colis.length > 1 && (
                       <s-button tone="critical" variant="plain" onClick={() => removeColis(c.id)}>
                         Supprimer
@@ -242,20 +242,23 @@ function Extension() {
                     )}
                   </s-stack>
 
-                  {lines.map(line => {
-                    const ci      = c.items.find(i => i.itemId === line.id);
-                    const current = ci?.qty ?? 0;
+                  <s-divider />
+
+                  {lines.map((line, lineIndex) => {
+                    const ci        = c.items.find(i => i.itemId === line.id);
+                    const current   = ci?.qty ?? 0;
                     const remaining = line.qty - assignedQty(line.id);
-                    const label   = line.sku || line.title;
+                    const label     = line.sku || line.title;
                     return (
-                      <s-stack direction="block" gap="none">
-                        <s-stack direction="inline" gap="base">
+                      <s-stack direction="block" gap="extraSmall">
+                        {lineIndex > 0 && <s-divider />}
+                        <s-stack direction="inline" gap="small">
                           <s-text>{label}</s-text>
                           <s-badge tone={remaining > 0 ? "warning" : "success"}>
                             {remaining > 0 ? `${remaining} restant(s)` : "✓ OK"}
                           </s-badge>
                         </s-stack>
-                        <s-stack direction="inline" gap="base">
+                        <s-stack direction="inline" gap="small">
                           <s-button variant="plain" onClick={() => setItemQty(c.id, line.id, current - 1)}>−</s-button>
                           <s-text><strong>{String(current)}</strong> / {line.qty}</s-text>
                           <s-button variant="plain" onClick={() => setItemQty(c.id, line.id, current + 1)}>+</s-button>
@@ -263,11 +266,14 @@ function Extension() {
                       </s-stack>
                     );
                   })}
+
                 </s-stack>
               </s-box>
             ))}
 
-            <s-button onClick={addColis}>+ Ajouter un colis</s-button>
+            <s-stack direction="inline" gap="base">
+              <s-button onClick={addColis}>+ Ajouter un colis</s-button>
+            </s-stack>
 
           </s-stack>
         )}
