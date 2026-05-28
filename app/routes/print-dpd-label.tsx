@@ -376,15 +376,14 @@ async function generateRefBarcode128(value: string): Promise<string> {
   } catch (e) { return ""; }
 }
 
-// CORRECTION 1 : scale 6 pour un Aztec lisible
 async function generateAztecPng(value: string): Promise<string> {
   if (!value) return "";
   try {
-    const png = await bwipjs.toBuffer({ bcid: 'azteccode', text: value, scale: 6 });
+    const png = await bwipjs.toBuffer({ bcid: 'azteccode', text: value, scale: 3 });
     return `data:image/png;base64,${png.toString('base64')}`;
   } catch (e) {
     try {
-      const png = await bwipjs.toBuffer({ bcid: 'qrcode', text: value, scale: 6 });
+      const png = await bwipjs.toBuffer({ bcid: 'qrcode', text: value, scale: 3 });
       return `data:image/png;base64,${png.toString('base64')}`;
     } catch (e2) { return ""; }
   }
@@ -426,14 +425,14 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
       generateAztecPng(aztecContent),
     ]);
 
-    // CORRECTION 4 : legende = serviceNum-countryPrefix-destZip (ex: 327-FR-57100)
     let barcode13Legend: string;
     if (label.routing?.bic3Text) {
       barcode13Legend = label.routing.bic3Text;
-    } else if (label.barCode) {
-      barcode13Legend = `${serviceNum}-${countryPrefix}-${label.destZip}`;
     } else {
-      barcode13Legend = barCode28;
+      const b = label.barCode ? barCode28.replace(/^%/, "") : barCode28;
+      barcode13Legend = label.barCode && b.length >= 27
+        ? `${b.slice(0,4)} ${b.slice(4,7)} ${b.slice(7,11)} ${b.slice(11,15)} ${b.slice(15,19)} ${b.slice(19,21)} ${b.slice(21,24)} ${b.slice(24,27)} X`
+        : b;
     }
 
     return { ...label, trackingNumber, barCode28, serviceCode, serviceNum, ref1Display, ref2Display, skuDisplay, countryPrefix, barcode128Url, refBarcodeUrl, aztecUrl, barcode13Legend, routing: label.routing };
@@ -490,12 +489,13 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     .service-code { font-size: 14pt; font-weight: 700; }
     .service-lbl { font-size: 4.5pt; color: #444; }
     .transport { border-bottom: 1px solid #000; }
-    .transport-row1 { display: grid; grid-template-columns: auto 1fr; align-items: flex-start; padding: 0.5mm 2mm; gap: 2mm; min-height: 10mm; }
-    .routing-text-sort { display: flex; flex-direction: column; justify-content: center; padding: 0.5mm 0; }
-    .routing { font-size: 14pt; font-weight: 700; line-height: 1.1; }
-    .routing-dsort { font-size: 10pt; font-weight: 700; margin-top: 1mm; }
-    .routing-pending { font-size: 6pt; color: #aaa; font-style: italic; }
-    .depot { background: #000 !important; color: #fff !important; font-size: 14pt; font-weight: 900; padding: 0.3mm 3mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; min-width: 8mm; text-align: center; align-self: flex-start; margin-top: 1mm; }
+    .transport-row1 { display: grid; grid-template-columns: auto 1fr auto; align-items: center; padding: 0.5mm 2mm; gap: 2mm; min-height: 7mm; }
+    .transport-row2 { display: grid; grid-template-columns: auto 1fr auto; align-items: center; padding: 0.3mm 2mm; gap: 2mm; border-top: 1px solid #ccc; min-height: 5mm; }
+    .depot { background: #000 !important; color: #fff !important; font-size: 14pt; font-weight: 900; padding: 0.3mm 3mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; min-width: 8mm; text-align: center; }
+    .depot-sm { background: #000 !important; color: #fff !important; font-size: 9pt; font-weight: 700; padding: 0.3mm 2mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; min-width: 8mm; text-align: center; }
+    .routing { font-size: 14pt; font-weight: 700; text-align: center; }
+    .routing-pending { font-size: 6pt; color: #aaa; text-align: center; font-style: italic; }
+    .sort { background: #000 !important; color: #fff !important; font-size: 12pt; font-weight: 700; padding: 0.3mm 2mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; min-width: 10mm; text-align: center; }
     .barcode-section { padding: 1mm 2mm 0.5mm; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     .barcode-img { width: 92%; height: auto; image-rendering: pixelated; }
     .barcode-legend { font-size: 5pt; color: #444; margin-top: 0.5mm; text-align: center; letter-spacing: 0.5px; }
@@ -506,7 +506,7 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
 <body>
 ${labelsWithData.map(({
   orderName, index, total, destName, destCompany, destAddress, destAddress2,
-  destZip, destCity, destPhone, countryPrefix, weight,
+  destZip, destCity, destPhone, destCountry, countryPrefix, weight,
   trackingNumber, barCode28, serviceCode, serviceNum,
   ref1Display, ref2Display, skuDisplay,
   barcode128Url, refBarcodeUrl, aztecUrl, barcode13Legend, routing,
@@ -581,14 +581,21 @@ ${labelsWithData.map(({
         ${routing?.depot
           ? `<div class="depot">${routing.depot}</div>`
           : `<div class="depot">&nbsp;&nbsp;</div>`}
-        <div class="routing-text-sort">
-          ${routing?.routingText
-            ? `<div class="routing">${routing.routingText}${routing.sSort ? `-${routing.sSort}` : `-`}</div>`
-            : `<div class="routing-pending">Plan de transport — disponible apres whitelisting IP</div>`}
-          ${routing?.dSort
-            ? `<div class="routing-dsort">${routing.dSort}</div>`
-            : ``}
-        </div>
+        ${routing?.routingText
+          ? `<div class="routing">${routing.routingText}-</div>`
+          : `<div class="routing-pending">Plan de transport — disponible apres whitelisting IP</div>`}
+        ${routing?.sSort
+          ? `<div class="sort">${routing.sSort}</div>`
+          : `<div class="sort">&nbsp;&nbsp;&nbsp;&nbsp;</div>`}
+      </div>
+      <div class="transport-row2">
+        ${routing?.dSort
+          ? `<div class="depot-sm">${routing.dSort}</div>`
+          : `<div class="depot-sm">&nbsp;&nbsp;</div>`}
+        ${routing?.bic3Number
+          ? `<div class="routing" style="font-size:9pt">${routing.bic3Number}</div>`
+          : `<div class="routing-pending"></div>`}
+        <div style="min-width:10mm"></div>
       </div>
     </div>
 
