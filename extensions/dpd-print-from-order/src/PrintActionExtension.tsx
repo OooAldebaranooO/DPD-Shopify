@@ -250,7 +250,7 @@ function Extension() {
                     const remaining = line.qty - assignedQty(line.id);
                     const label     = line.sku || line.title;
                     return (
-                      <s-stack direction="block" gap="extraSmall">
+                      <s-stack direction="inline" justifyContent="space-between" alignItems="center" gap="extraSmall" {...{} as any}>
                         {lineIndex > 0 && <s-divider />}
                         <s-stack direction="inline" gap="small">
                           <s-text>{label}</s-text>
@@ -258,7 +258,7 @@ function Extension() {
                             {remaining > 0 ? `${remaining} restant(s)` : "✓ Assigné"}
                           </s-badge>
                         </s-stack>
-                        <s-stack direction="inline" gap="small">
+                        <s-stack direction="inline" justifyContent="space-between" alignItems="center" gap="small" {...{} as any}>
                           <s-button variant="plain" onClick={() => setItemQty(c.id, line.id, current - 1)}>−</s-button>
                           <s-text><strong>{String(current)}</strong> / {line.qty}</s-text>
                           <s-button variant="plain" onClick={() => setItemQty(c.id, line.id, current + 1)}>+</s-button>
@@ -271,7 +271,7 @@ function Extension() {
               </s-box>
             ))}
 
-            <s-stack direction="inline" gap="base">
+            <s-stack direction="inline" justifyContent="space-between" alignItems="center" gap="base"  {...{} as any}>
               <s-button variant="primary" onClick={addColis}>+ Ajouter un colis</s-button>
             </s-stack>
 
