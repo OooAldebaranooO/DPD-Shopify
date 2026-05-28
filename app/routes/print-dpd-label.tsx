@@ -470,7 +470,7 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     .middle-left-bottom { border-top: 1px solid #ddd; padding-top: 1mm; display: flex; justify-content: space-between; align-items: center; }
     .row { margin-bottom: 0.8mm; line-height: 1.3; }
     .row .lbl { font-size: 5pt; color: #444; display: block; }
-    .ref-barcode img { height: 7mm; max-width: 65%; }
+    .ref-barcode img { height: 7mm; max-width: 95%; }
     .middle-right { display: grid; grid-template-columns: auto auto; }
     .colis-poids { display: flex; flex-direction: column; border-right: 1px solid #000; }
     .colis-badge { padding: 1mm 2.5mm; border-bottom: 1px solid #000; flex: 1; }
@@ -479,7 +479,7 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     .poids-badge { padding: 1mm 2.5mm; flex: 1; }
     .poids-badge .lbl { font-size: 4.5pt; color: #444; }
     .poids-badge strong { font-size: 12pt; font-weight: 700; }
-    .aztec-block { padding: 1mm; display: flex; align-items: center; justify-content: center; width: 26mm; }
+    .aztec-block { padding: 1mm; display: flex; align-items: center; justify-content: center; width: 33mm; }
     .aztec-block img { width: 100%; height: auto; }
     .tracking { display: grid; grid-template-columns: 1fr auto; padding: 1mm 2mm; border-bottom: 1px solid #000; align-items: center; }
     .track-label { font-size: 4.5pt; color: #444; }
@@ -492,10 +492,10 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     .transport-row1 { display: grid; grid-template-columns: auto 1fr auto; align-items: center; padding: 0.5mm 2mm; gap: 2mm; min-height: 7mm; }
     .transport-row2 { display: grid; grid-template-columns: auto 1fr auto; align-items: center; padding: 0.3mm 2mm; gap: 2mm; border-top: 1px solid #ccc; min-height: 5mm; }
     .depot { background: #000 !important; color: #fff !important; font-size: 14pt; font-weight: 900; padding: 0.3mm 3mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; min-width: 8mm; text-align: center; }
-    .depot-sm { background: #000 !important; color: #fff !important; font-size: 9pt; font-weight: 700; padding: 0.3mm 2mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; min-width: 8mm; text-align: center; }
-    .routing { font-size: 14pt; font-weight: 700; text-align: center; }
+    .depot-sm { background: #000 !important; color: #fff !important; font-size: 17pt; font-weight: 700; padding: 0.3mm 2mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; min-width: 8mm; text-align: center; width: 22mm; }
+    .routing { font-size: 19pt; font-weight: 700; text-align: center; }
     .routing-pending { font-size: 6pt; color: #aaa; text-align: center; font-style: italic; }
-    .sort { background: #000 !important; color: #fff !important; font-size: 12pt; font-weight: 700; padding: 0.3mm 2mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; min-width: 10mm; text-align: center; }
+    .sort { background: #000 !important; color: #fff !important; font-size: 17pt; font-weight: 700; padding: 0.3mm 2mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; min-width: 10mm; text-align: center; }
     .barcode-section { padding: 1mm 2mm 0.5mm; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     .barcode-img { width: 92%; height: auto; image-rendering: pixelated; }
     .barcode-legend { font-size: 5pt; color: #444; margin-top: 0.5mm; text-align: center; letter-spacing: 0.5px; }
@@ -582,19 +582,17 @@ ${labelsWithData.map(({
           ? `<div class="depot">${routing.depot}</div>`
           : `<div class="depot">&nbsp;&nbsp;</div>`}
         ${routing?.routingText
-          ? `<div class="routing">${routing.routingText}-</div>`
-          : `<div class="routing-pending">Plan de transport — disponible apres whitelisting IP</div>`}
+          ? `<div class="routing">${routing.routingText}</div>`
+          : `<div class="routing-pending">Plan de transport</div>`}
         ${routing?.sSort
           ? `<div class="sort">${routing.sSort}</div>`
           : `<div class="sort">&nbsp;&nbsp;&nbsp;&nbsp;</div>`}
       </div>
       <div class="transport-row2">
+        <div class="service-lbl">Service: ${serviceNum}</div>-<span class="dest-zip">${countryPrefix}-${destZip}</span>
         ${routing?.dSort
           ? `<div class="depot-sm">${routing.dSort}</div>`
           : `<div class="depot-sm">&nbsp;&nbsp;</div>`}
-        ${routing?.bic3Number
-          ? `<div class="routing" style="font-size:9pt">${routing.bic3Number}</div>`
-          : `<div class="routing-pending"></div>`}
         <div style="min-width:10mm"></div>
       </div>
     </div>
