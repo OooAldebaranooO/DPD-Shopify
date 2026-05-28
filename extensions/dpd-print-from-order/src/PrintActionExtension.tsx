@@ -234,9 +234,9 @@ function Extension() {
                 <s-stack direction="block" gap="small">
 
                   <s-stack direction="inline" gap="base">
-                    <s-text><strong>📦 Colis {colisIndex + 1} / {colis.length}</strong></s-text>
+                    <s-heading><strong>📦 Colis {colisIndex + 1} / {colis.length}</strong></s-heading>
                     {colis.length > 1 && (
-                      <s-button tone="critical" variant="plain" onClick={() => removeColis(c.id)}>
+                      <s-button variant="primary" tone="critical" onClick={() => removeColis(c.id)}>
                         Supprimer
                       </s-button>
                     )}
@@ -255,7 +255,7 @@ function Extension() {
                         <s-stack direction="inline" gap="small">
                           <s-text>{label}</s-text>
                           <s-badge tone={remaining > 0 ? "warning" : "success"}>
-                            {remaining > 0 ? `${remaining} restant(s)` : "✓ OK"}
+                            {remaining > 0 ? `${remaining} restant(s)` : "✓ Assigné"}
                           </s-badge>
                         </s-stack>
                         <s-stack direction="inline" gap="small">
@@ -272,7 +272,7 @@ function Extension() {
             ))}
 
             <s-stack direction="inline" gap="base">
-              <s-button onClick={addColis}>+ Ajouter un colis</s-button>
+              <s-button variant="primary" onClick={addColis}>+ Ajouter un colis</s-button>
             </s-stack>
 
           </s-stack>
