@@ -247,13 +247,13 @@ function Extension() {
                   <s-divider />
 
                   {lines.map((line, lineIndex) => {
-                    const ci        = c.items.find(i => i.itemId === line.id);
-                    const current   = ci?.qty ?? 0;
-                    const remaining = line.qty - assignedQty(line.id);
-                    const label     = line.sku || line.title;
-                    return (
-                      <s-stack direction="block" gap="extraSmall">
-                        {lineIndex > 0 && <s-divider />}
+                  const ci        = c.items.find(i => i.itemId === line.id);
+                  const current   = ci?.qty ?? 0;
+                  const remaining = line.qty - assignedQty(line.id);
+                  const label     = line.sku || line.title;
+                  return (
+                    <s-box padding="base" background="surface-secondary" border-radius="base">
+                      <s-stack direction="block" gap="small">
                         <s-stack direction="inline" gap="small">
                           <s-text>{label}</s-text>
                           <s-badge tone={remaining > 0 ? "warning" : "success"}>
@@ -266,8 +266,9 @@ function Extension() {
                           <s-button variant="plain" onClick={() => setItemQty(c.id, line.id, current + 1)}>+</s-button>
                         </s-stack>
                       </s-stack>
-                    );
-                  })}
+                    </s-box>
+                  );
+                })}
 
                 </s-stack>
               </s-box>
