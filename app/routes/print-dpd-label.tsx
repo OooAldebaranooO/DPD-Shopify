@@ -222,7 +222,13 @@ async function getLabelData(config: Config, barCode: string, trackingNumber: str
     // Decode entités XML dans aztecValue
     const rawAztec = aztecMatch?.[1]?.trim() || null;
     const aztecDecoded = rawAztec
-      ? rawAztec.replace(/&gt;/g, ">").replace(/&lt;/g, "<").replace(/&amp;/g, "&").replace(/&quot;/g, '"')
+      ? rawAztec
+          .replace(/&gt;/g, ">").replace(/&lt;/g, "<").replace(/&amp;/g, "&").replace(/&quot;/g, '"')
+          // Convertit les séparateurs GS1 encodés en vrais caractères de contrôle
+          .replace(/_1D/g, "")  // GS — Group Separator
+          .replace(/_1E/g, "")  // RS — Record Separator
+          .replace(/_1F/g, "")  // US — Unit Separator
+          .replace(/_04/g, "")  // EOT
       : null;
     return {
       depot:       tag("Bic3Depot"),
@@ -591,7 +597,7 @@ ${labelsWithData.map(({
           : `<div class="depot">&nbsp;&nbsp;</div>`}
         ${routing?.routingText
           ? `<div class="routing">${routing.routingText}-</div>`
-          : `<div class="routing-pending">Plan de transport</div>`}
+          : `<div class="routing-pending">Plan de transport — disponible apres whitelisting IP</div>`}
         ${routing?.sSort
           ? `<div class="sort">${routing.sSort}</div>`
           : `<div class="sort">&nbsp;&nbsp;&nbsp;&nbsp;</div>`}
