@@ -219,7 +219,10 @@ async function getLabelData(config: Config, barCode: string, trackingNumber: str
     const aztecDecoded = rawAztec
       ? rawAztec
           .replace(/&gt;/g, ">").replace(/&lt;/g, "<").replace(/&amp;/g, "&").replace(/&quot;/g, '"')
-          .replace(/_1D/g, "").replace(/_1E/g, "").replace(/_1F/g, "").replace(/_04/g, "")
+          .replace(/_1E/g, "\x1E")
+          .replace(/_1D/g, "\x1D")
+          .replace(/_1F/g, "\x1F")
+          .replace(/_04/g, "\x04")
       : null;
     return {
       depot:       tag("Bic3Depot"),
@@ -421,7 +424,7 @@ async function renderLabels(labels: LabelData[], config: Config, isMock: boolean
     const skuDisplay     = label.sku || "";
     const countryPrefix  = getCountryPrefix(label.destCountry);
     const trackingKey   = trackingNumber ? computeTrackingKey(trackingNumber) : "";
-console.log("label.routing:", JSON.stringify(label.routing));
+
     const aztecContent = label.routing?.aztecValue
     ? label.routing.aztecValue
     : label.trackingNumber
