@@ -212,7 +212,6 @@ async function getLabelData(config: Config, barCode: string, trackingNumber: str
       body,
     });
     const xml = await response.text();
-    console.log("[GetLabelData] xml:", xml.slice(0, 2000));
     const tag = (name: string) => xml.match(new RegExp(`<${name}>([^<]*)<\/${name}>`, 'i'))?.[1]?.trim() || "";
     // Aztec : dans BarcodeData imbriqué
     const aztecMatch = xml.match(/<Identifier>Aztec<\/Identifier><BarcodeValue>([\s\S]*?)<\/BarcodeValue>/i);
