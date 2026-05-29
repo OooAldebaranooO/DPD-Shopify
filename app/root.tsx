@@ -1,6 +1,9 @@
+import "@shopify/polaris/build/esm/styles.css";
 import { Links, Meta, Outlet, Scripts, ScrollRestoration } from "react-router";
 
 export default function App() {
+  console.log("DB proto:", process.env.DATABASE_URL?.slice(0, 15));
+  console.log("DIRECT proto:", process.env.DIRECT_URL?.slice(0, 15));
   return (
     <html lang="en">
       <head>
