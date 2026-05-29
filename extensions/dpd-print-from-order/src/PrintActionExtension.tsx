@@ -165,7 +165,7 @@ function Extension() {
     setColis(prev => prev.filter(c => c.id !== colisId));
   }
 
-  // Pas de blocage inter-colis — chaque colis est indépendant
+  // Pas de blocage inter-colis - chaque colis est indépendant
   function setItemQty(colisId: string, itemId: string, newQty: number) {
     const line = lines.find(l => l.id === itemId);
     if (!line) return;
@@ -228,21 +228,23 @@ function Extension() {
               </s-box>
               <s-box padding="base" background="surface-secondary">
                 <s-stack direction="block" gap="none">
-                  <s-text tone="subdued">Colis</s-text>
+                  <s-text tone="subdued">Nombre total de colis</s-text>
                   <s-heading>{String(colis.length)}</s-heading>
                 </s-stack>
               </s-box>
-              
-              {/* Statut d'assignation — info seulement, ne bloque pas */}
+
+              <s-divider />
+
+              {/* Statut d'assignation - info seulement, ne bloque pas */}
               {lines.some(l => !colis.some(c => (c.items.find(ci => ci.itemId === l.id)?.qty ?? 0) > 0)) ? (
                 <s-banner tone="warning">
                   {lines
                     .filter(l => !colis.some(c => (c.items.find(ci => ci.itemId === l.id)?.qty ?? 0) > 0))
-                    .map(l => `${l.sku || l.title} — non assigné`)
+                    .map(l => `${l.sku || l.title} - non assigné`)
                     .join("  •  ")}
                 </s-banner>
               ) : (
-                <s-banner tone="success">Tous les articles sont assignés — prêt à imprimer</s-banner>
+                <s-banner tone="success">Tous les articles sont assignés - prêt à imprimer</s-banner>
               )}
               <s-button variant="primary" onClick={addColis}>+ Ajouter un colis</s-button>
             </s-stack>
@@ -296,6 +298,7 @@ function Extension() {
                         </s-box>
                       );
                     })}
+                    <s-divider />
 
                   </s-stack>
                 </s-box>
