@@ -20,7 +20,6 @@ export default function Index() {
                   <List.Item>Depuis une commande, cliquez sur <strong>Autres actions</strong> puis <strong>Impression DPD</strong>.</List.Item>
                   <List.Item>Les articles sont automatiquement chargés et assignés à un colis.</List.Item>
                   <List.Item>Un aperçu s'affiche avec une étiquette DPD par page, prêt à imprimer.</List.Item>
-                  <List.Item>Vous pouvez sélectionner plusieurs commandes et imprimer toutes les étiquettes en une fois.</List.Item>
                 </List>
               </BlockStack>
             </Card>
@@ -86,9 +85,14 @@ export default function Index() {
 
             <Card>
               <BlockStack gap="200">
-                <Text as="h2" variant="headingMd">Informations</Text>
+                <InlineStack align="space-between">
+                  <Text as="h2" variant="headingMd">Informations</Text>
+                  <a href="https://www.johanvf.pro/" target="_blank" rel="noopener noreferrer">
+                    <img src="https://www.johanvf.pro/logo_jvfpro.png" alt="Logo" style={{ height: "40px" }} />
+                  </a>
+                </InlineStack>
                 <Text as="p" tone="subdued">Application développée exclusivement pour Livedeco.com</Text>
-                <Text as="p" tone="subdued">Johan Vauche-Forot - contact@johanvf.pro</Text>
+                <Text as="p" tone="subdued">Johan Vauche-Forot — contact@johanvf.pro</Text>
                 <Text as="p" tone="subdued">© 2026 - Tous droits réservés</Text>
               </BlockStack>
             </Card>
