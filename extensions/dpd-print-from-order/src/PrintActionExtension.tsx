@@ -232,6 +232,18 @@ function Extension() {
                   <s-heading>{String(colis.length)}</s-heading>
                 </s-stack>
               </s-box>
+              
+              {/* Statut d'assignation — info seulement, ne bloque pas */}
+              {lines.some(l => !colis.some(c => (c.items.find(ci => ci.itemId === l.id)?.qty ?? 0) > 0)) ? (
+                <s-banner tone="warning">
+                  {lines
+                    .filter(l => !colis.some(c => (c.items.find(ci => ci.itemId === l.id)?.qty ?? 0) > 0))
+                    .map(l => `${l.sku || l.title} — non assigné`)
+                    .join("  •  ")}
+                </s-banner>
+              ) : (
+                <s-banner tone="success">Tous les articles sont assignés — prêt à imprimer</s-banner>
+              )}
               <s-button variant="primary" onClick={addColis}>+ Ajouter un colis</s-button>
             </s-stack>
 
