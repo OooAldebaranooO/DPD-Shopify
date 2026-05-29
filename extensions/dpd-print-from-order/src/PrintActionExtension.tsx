@@ -253,7 +253,7 @@ function Extension() {
             {colis.map((c, colisIndex) => {
               const itemCount = colisItemCount(c);
               return (
-                <s-box key={c.id} padding="base" background="surface-secondary" border-radius="base">
+                <s-box key={c.id} padding="base" background="subdued" border-radius="base">
                   <s-stack direction="block" gap="small">
 
                     {/* @ts-ignore */}
