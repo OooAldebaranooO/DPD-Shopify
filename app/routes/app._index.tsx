@@ -10,18 +10,15 @@ export default function Index() {
   return (
     <Page
         title="Impression d'étiquettes DPD LiveDeco"
-        secondaryActions={[
-          {
-            content: "",
-            icon: () => (
-              <img
-                src="https://dpd-shopify-oken.vercel.app/dpd-logo.png"
-                alt="DPD"
-                style={{ height: "32px" }}
-              />
-            ),
-          }
-        ]}
+        titleMetadata={
+          <div style={{ position: "absolute", right: 0, top: 0 }}>
+            <img
+              src="https://dpd-shopify-oken.vercel.app/dpd-logo.png"
+              alt="DPD"
+              style={{ height: "32px" }}
+            />
+          </div>
+        }
       >
       <Layout>
         <Layout.Section>
