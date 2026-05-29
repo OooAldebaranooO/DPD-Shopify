@@ -264,7 +264,9 @@ async function callDpdEprint(config: Config, order: OrderParams): Promise<LabelD
       weight: itemWeight, shippingDate,
     });
     const { trackingNumber, barCode, error } = await parseShipmentResponse(xml);
-    if (error) throw new Error(error);
+    if (error) {
+      console.warn("Erreur DPD (non-bloquant):", error);
+    }
     const routing = (barCode && trackingNumber) ? await getLabelData(config, barCode, trackingNumber) : null;
     labels.push({
       orderName: order.orderName, shopifyOrderId: order.shopifyOrderId,
