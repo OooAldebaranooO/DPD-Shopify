@@ -117,10 +117,6 @@ function Extension() {
     const destCompany = addr?.company || "";
 
     const colisItems = colis.map(c => {
-      const totalWeight = c.items.reduce((acc, ci) => {
-        const line = lines.find(l => l.id === ci.itemId);
-        return acc + (line ? line.weight * ci.qty : 0);
-      }, 0);
       const skus = c.items
         .filter(ci => ci.qty > 0)
         .map(ci => {
@@ -131,7 +127,7 @@ function Extension() {
         })
         .filter(Boolean)
         .join("+");
-      return { weight: Math.max(0.01, totalWeight), sku: skus };
+      return { weight: 1, sku: skus }; // poids fixe à 1
     });
 
     const count        = colis.length;
@@ -293,7 +289,7 @@ function Extension() {
                       <s-stack direction="block" gap="none">
                         <s-heading>Colis {colisIndex + 1} / {colis.length}</s-heading>
                         <s-text tone="subdued">
-                          {itemCount} article{itemCount !== 1 ? "s" : ""} · {weight.toFixed(2)} kg
+                          {itemCount} article{itemCount !== 1 ? "s" : ""}
                         </s-text>
                       </s-stack>
                       <s-stack direction="inline" gap="small" {...{} as any}>
