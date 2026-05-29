@@ -8,7 +8,16 @@ export const loader = async () => {
 
 export default function Index() {
   return (
-    <Page title="Impression DPD LiveDeco">
+    <Page
+        title="Impression d'étiquettes DPD LiveDeco"
+        titleMetadata={
+          <img
+            src="https://dpd-shopify-oken.vercel.app/dpd-logo.png"
+            alt="DPD"
+            style={{ height: "32px" }}
+          />
+        }
+      >
       <Layout>
         <Layout.Section>
           <BlockStack gap="400">
@@ -92,7 +101,7 @@ export default function Index() {
                   <Text as="p" tone="subdued">© 2026 - Tous droits réservés</Text>
                 </BlockStack>
                 <a href="https://www.johanvf.pro/" target="_blank" rel="noopener noreferrer">
-                    <img src="https://www.johanvf.pro/logo_jvfpro.png" alt="Logo" style={{ height: "60px" }} />
+                    <img src="https://www.johanvf.pro/logo_jvfpro.png" alt="Logo" style={{ height: "60px", margin: "auto 0px" }} />
                 </a>
               </InlineStack>
             </Card>
