@@ -1,4 +1,5 @@
 import type { LoaderFunctionArgs, HeadersFunction } from "react-router";
+import { Outlet } from "react-router";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { useRouteError } from "react-router";
@@ -8,12 +9,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return null;
 };
 
-export default function Index() {
-  return (
-    <div style={{ padding: "20px" }}>
-      <h1>Test</h1>
-    </div>
-  );
+export default function App() {
+  return <Outlet />;
 }
 
 export function ErrorBoundary() {
