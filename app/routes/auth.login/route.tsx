@@ -2,10 +2,10 @@ import type { LoaderFunctionArgs } from "react-router";
 import { login } from "../../shopify.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  console.log("auth.login loader called", request.url);
-  const result = await login(request);
-  console.log("login result:", result);
-  return result;
+  const url = new URL(request.url);
+  console.log("shop param:", url.searchParams.get("shop"));
+  console.log("full url:", request.url);
+  return login(request);
 };
 
 export default function LoginPage() {
