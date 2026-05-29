@@ -299,7 +299,6 @@ function Extension() {
                       );
                     })}
                     <s-divider />
-                    <s-divider />
                     
                   </s-stack>
                 </s-box>
