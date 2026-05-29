@@ -84,17 +84,17 @@ export default function Index() {
             </Card>
 
             <Card>
-              <BlockStack gap="200">
-                <InlineStack align="space-between">
+              <InlineStack align="space-between">
+                <BlockStack gap="200">
                   <Text as="h2" variant="headingMd">Informations</Text>
-                  <a href="https://www.johanvf.pro/" target="_blank" rel="noopener noreferrer">
-                    <img src="https://www.johanvf.pro/logo_jvfpro.png" alt="Logo" style={{ height: "40px" }} />
-                  </a>
-                </InlineStack>
-                <Text as="p" tone="subdued">Application développée exclusivement pour Livedeco.com</Text>
-                <Text as="p" tone="subdued">Johan Vauche-Forot — contact@johanvf.pro</Text>
-                <Text as="p" tone="subdued">© 2026 - Tous droits réservés</Text>
-              </BlockStack>
+                  <Text as="p" tone="subdued">Application développée exclusivement pour Livedeco.com</Text>
+                  <Text as="p" tone="subdued">Johan Vauche-Forot — contact@johanvf.pro</Text>
+                  <Text as="p" tone="subdued">© 2026 - Tous droits réservés</Text>
+                </BlockStack>
+                <a href="https://www.johanvf.pro/" target="_blank" rel="noopener noreferrer">
+                    <img src="https://www.johanvf.pro/logo_jvfpro.png" alt="Logo" style={{ height: "60px" }} />
+                </a>
+              </InlineStack>
             </Card>
 
           </BlockStack>
