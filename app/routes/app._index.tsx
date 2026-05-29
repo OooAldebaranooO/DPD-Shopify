@@ -17,7 +17,7 @@ export default function Index() {
               <BlockStack gap="400">
                 <Text as="h2" variant="headingMd">Comment ça marche ?</Text>
                 <List type="number">
-                  <List.Item>Depuis une commande, cliquez sur <strong>Imprimer</strong> puis <strong>DPD Livedeco</strong>.</List.Item>
+                  <List.Item>Depuis une commande, cliquez sur <strong>Autres actions</strong> puis <strong>DPD Livedeco</strong>.</List.Item>
                   <List.Item>Les articles sont automatiquement chargés et assignés à un colis.</List.Item>
                   <List.Item>Un aperçu s'affiche avec une étiquette DPD par page, prêt à imprimer.</List.Item>
                 </List>
