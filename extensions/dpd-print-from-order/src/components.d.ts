@@ -12,6 +12,7 @@ declare namespace preact.JSX {
 
     // ── Layout ────────────────────────────────────────────────────────────
     's-box': {
+      key?: string | number;
       padding?: string;
       background?: string;
       'border-radius'?: string;

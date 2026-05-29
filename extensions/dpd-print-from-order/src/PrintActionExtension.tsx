@@ -27,14 +27,14 @@ interface Colis {
 function Extension() {
   const { data } = shopify;
 
-  const [orderName, setOrderName]         = useState<string | null>(null);
+  const [orderName, setOrderName]           = useState<string | null>(null);
   const [shopifyOrderId, setShopifyOrderId] = useState<string | null>(null);
-  const [lines, setLines]                 = useState<LineItem[]>([]);
-  const [colis, setColis]                 = useState<Colis[]>([]);
-  const [printUrl, setPrintUrl]           = useState<string | null>(null);
-  const [error, setError]                 = useState<string | null>(null);
-  const [isLoading, setIsLoading]         = useState(true);
-  const [addr, setAddr]                   = useState<any>(null);
+  const [lines, setLines]                   = useState<LineItem[]>([]);
+  const [colis, setColis]                   = useState<Colis[]>([]);
+  const [printUrl, setPrintUrl]             = useState<string | null>(null);
+  const [error, setError]                   = useState<string | null>(null);
+  const [isLoading, setIsLoading]           = useState(true);
+  const [addr, setAddr]                     = useState<any>(null);
 
   useEffect(() => {
     async function loadOrder() {
@@ -165,18 +165,6 @@ function Extension() {
     setColis(prev => prev.filter(c => c.id !== colisId));
   }
 
-  function setItemQty(colisId: string, itemId: string, newQty: number) {
-    const line = lines.find(l => l.id === itemId);
-    if (!line) return;
-    const clamped = Math.max(0, Math.min(newQty, line.qty));
-    setColis(prev => prev.map(c => {
-      if (c.id !== colisId) return c;
-      const existing = c.items.find(ci => ci.itemId === itemId);
-      if (existing) return { ...c, items: c.items.map(ci => ci.itemId === itemId ? { ...ci, qty: clamped } : ci) };
-      return { ...c, items: [...c.items, { itemId, qty: clamped }] };
-    }));
-  }
-
   function assignedQty(itemId: string): number {
     return colis.reduce((acc, c) => {
       const ci = c.items.find(i => i.itemId === itemId);
@@ -184,10 +172,56 @@ function Extension() {
     }, 0);
   }
 
+  function setItemQty(colisId: string, itemId: string, newQty: number) {
+    const line = lines.find(l => l.id === itemId);
+    if (!line) return;
+    setColis(prev => {
+      const assignedInOthers = prev
+        .filter(c => c.id !== colisId)
+        .reduce((acc, c) => acc + (c.items.find(ci => ci.itemId === itemId)?.qty ?? 0), 0);
+      const maxForThis = line.qty - assignedInOthers;
+      const clamped = Math.max(0, Math.min(newQty, maxForThis));
+      return prev.map(c => {
+        if (c.id !== colisId) return c;
+        const existing = c.items.find(ci => ci.itemId === itemId);
+        if (existing) return { ...c, items: c.items.map(ci => ci.itemId === itemId ? { ...ci, qty: clamped } : ci) };
+        return { ...c, items: [...c.items, { itemId, qty: clamped }] };
+      });
+    });
+  }
+
+  function assignRemaining(colisId: string) {
+    setColis(prev => prev.map(c => {
+      if (c.id !== colisId) return c;
+      const updated = c.items.map(ci => {
+        const line = lines.find(l => l.id === ci.itemId);
+        if (!line) return ci;
+        const assignedInOthers = prev
+          .filter(other => other.id !== colisId)
+          .reduce((acc, other) => acc + (other.items.find(i => i.itemId === ci.itemId)?.qty ?? 0), 0);
+        return { ...ci, qty: line.qty - assignedInOthers };
+      });
+      return { ...c, items: updated };
+    }));
+  }
+
+  function colisWeight(c: Colis): number {
+    return c.items.reduce((acc, ci) => {
+      const line = lines.find(l => l.id === ci.itemId);
+      return acc + (line ? line.weight * ci.qty : 0);
+    }, 0);
+  }
+
+  function colisItemCount(c: Colis): number {
+    return c.items.reduce((acc, ci) => acc + ci.qty, 0);
+  }
+
   const unassignedLines = lines.filter(l => assignedQty(l.id) < l.qty);
+  const allAssigned     = unassignedLines.length === 0;
+  const totalWeight     = lines.reduce((acc, l) => acc + l.weight * l.qty, 0);
 
   return (
-    <s-admin-print-action src={printUrl || undefined}>
+    <s-admin-print-action src={allAssigned && printUrl ? printUrl : undefined}>
       <s-stack direction="block" gap="base">
 
         <s-stack direction="block" gap="none">
@@ -205,12 +239,18 @@ function Extension() {
         ) : (
           <s-stack direction="block" gap="base">
 
-            {/* @ts-ignore */}
-            <s-stack direction="inline" justifyContent="space-between" alignItems="center" gap="base">
+            {/* Résumé commande */}
+            <s-stack direction="inline" justifyContent="space-between" alignItems="center" gap="base" {...{} as any}>
               <s-box padding="base" background="surface-secondary">
                 <s-stack direction="block" gap="none">
                   <s-text tone="subdued">Commande</s-text>
                   <s-heading>{orderName}</s-heading>
+                </s-stack>
+              </s-box>
+              <s-box padding="base" background="surface-secondary">
+                <s-stack direction="block" gap="none">
+                  <s-text tone="subdued">Poids total</s-text>
+                  <s-heading>{totalWeight.toFixed(2)} kg</s-heading>
                 </s-stack>
               </s-box>
               <s-box padding="base" background="surface-secondary">
@@ -222,58 +262,98 @@ function Extension() {
               <s-button variant="primary" onClick={addColis}>+ Ajouter un colis</s-button>
             </s-stack>
 
-            {unassignedLines.length > 0 && (
+            {/* Statut d'assignation */}
+            {!allAssigned ? (
               <s-banner tone="warning">
                 {unassignedLines.map(l => {
                   const missing = l.qty - assignedQty(l.id);
-                  return `${l.sku || l.title} : ${missing} unité(s) non assignée(s)`;
-                }).join(" | ")}
+                  return `${l.sku || l.title} — ${missing} unité${missing > 1 ? "s" : ""} non assignée${missing > 1 ? "s" : ""}`;
+                }).join("  •  ")}
               </s-banner>
+            ) : (
+              <s-banner tone="success">Tous les articles sont assignés — prêt à imprimer</s-banner>
             )}
 
-            {colis.map((c, colisIndex) => (
-              <s-box padding="base" background="surface-secondary" border-radius="base">
-                <s-stack direction="block" gap="small">
+            {/* Liste des colis */}
+            {colis.map((c, colisIndex) => {
+              const weight    = colisWeight(c);
+              const itemCount = colisItemCount(c);
+              const hasRemaining = lines.some(l => {
+                const assignedInOthers = colis
+                  .filter(other => other.id !== c.id)
+                  .reduce((acc, other) => acc + (other.items.find(ci => ci.itemId === l.id)?.qty ?? 0), 0);
+                return l.qty - assignedInOthers > (c.items.find(ci => ci.itemId === l.id)?.qty ?? 0);
+              });
 
-                  <s-stack direction="inline" justifyContent="space-between" alignItems="center" gap="base" {...{} as any}>
-                    <s-heading><strong>📦 Colis {colisIndex + 1} / {colis.length}</strong></s-heading>
-                    {colis.length > 1 && (
-                      <s-button variant="primary" tone="critical" onClick={() => removeColis(c.id)}>
-                        Supprimer
-                      </s-button>
-                    )}
-                  </s-stack>
+              return (
+                <s-box key={c.id} padding="base" background="surface-secondary" border-radius="base">
+                  <s-stack direction="block" gap="small">
 
-                  <s-divider />
-
-                  {lines.map((line, lineIndex) => {
-                  const ci        = c.items.find(i => i.itemId === line.id);
-                  const current   = ci?.qty ?? 0;
-                  const remaining = line.qty - assignedQty(line.id);
-                  const label     = line.sku || line.title;
-                  return (
-                    <s-box padding="base" background="surface-secondary" border-radius="base" borderColor="base" {...{} as any}>
-                      <s-stack direction="block" gap="small">
-                        <s-stack direction="inline" gap="small">
-                          <s-text>{label}</s-text>
-                          <s-badge tone={remaining > 0 ? "warning" : "success"}>
-                            {remaining > 0 ? `${remaining} restant(s)` : "✓ Assigné"}
-                          </s-badge>
-                        </s-stack>
-                        <s-stack direction="inline" gap="small">
-                          <s-button variant="plain" onClick={() => setItemQty(c.id, line.id, current - 1)}>−</s-button>
-                          <s-text><strong>{String(current)}</strong> / {line.qty}</s-text>
-                          <s-button variant="plain" onClick={() => setItemQty(c.id, line.id, current + 1)}>+</s-button>
-                        </s-stack>
+                    <s-stack direction="inline" justifyContent="space-between" alignItems="center" gap="base" {...{} as any}>
+                      <s-stack direction="block" gap="none">
+                        <s-heading>Colis {colisIndex + 1} / {colis.length}</s-heading>
+                        <s-text tone="subdued">
+                          {itemCount} article{itemCount !== 1 ? "s" : ""} · {weight.toFixed(2)} kg
+                        </s-text>
                       </s-stack>
-                    </s-box>
-                  );
-                })}
+                      <s-stack direction="inline" gap="small" {...{} as any}>
+                        {hasRemaining && (
+                          <s-button variant="plain" onClick={() => assignRemaining(c.id)}>
+                            Tout assigner ici
+                          </s-button>
+                        )}
+                        {colis.length > 1 && (
+                          <s-button variant="primary" tone="critical" onClick={() => removeColis(c.id)}>
+                            Supprimer
+                          </s-button>
+                        )}
+                      </s-stack>
+                    </s-stack>
 
-                </s-stack>
-              </s-box>
-            ))}
-            
+                    <s-divider />
+
+                    {lines.map(line => {
+                      const ci              = c.items.find(i => i.itemId === line.id);
+                      const current         = ci?.qty ?? 0;
+                      const globalRemaining = line.qty - assignedQty(line.id);
+                      const label           = line.sku || line.title;
+
+                      const badgeTone = globalRemaining === 0
+                        ? "success"
+                        : current === 0
+                          ? "neutral"
+                          : "warning";
+                      const badgeText = globalRemaining === 0
+                        ? "Complet"
+                        : current === 0
+                          ? "Non assigné"
+                          : `${globalRemaining} non assigné${globalRemaining > 1 ? "s" : ""}`;
+
+                      return (
+                        <s-box key={line.id} padding="base" background="surface-secondary" border-radius="base" borderColor="base" {...{} as any}>
+                          <s-stack direction="inline" justifyContent="space-between" alignItems="center" gap="base" {...{} as any}>
+                            <s-stack direction="block" gap="none">
+                              <s-text>{label}</s-text>
+                              {line.weight > 0 && (
+                                <s-text tone="subdued">{line.weight.toFixed(3)} kg/unité</s-text>
+                              )}
+                            </s-stack>
+                            <s-stack direction="inline" alignItems="center" gap="small" {...{} as any}>
+                              <s-button variant="plain" onClick={() => setItemQty(c.id, line.id, current - 1)}>−</s-button>
+                              <s-text><strong>{String(current)}</strong> / {line.qty}</s-text>
+                              <s-button variant="plain" onClick={() => setItemQty(c.id, line.id, current + 1)}>+</s-button>
+                              <s-badge tone={badgeTone}>{badgeText}</s-badge>
+                            </s-stack>
+                          </s-stack>
+                        </s-box>
+                      );
+                    })}
+
+                  </s-stack>
+                </s-box>
+              );
+            })}
+
           </s-stack>
         )}
       </s-stack>
