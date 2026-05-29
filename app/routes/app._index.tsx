@@ -12,6 +12,7 @@ export default function Index() {
       <Layout>
         <Layout.Section>
           <BlockStack gap="400">
+
             <Card>
               <BlockStack gap="400">
                 <Text as="h2" variant="headingMd">Comment ça marche ?</Text>
@@ -23,6 +24,7 @@ export default function Index() {
                 </List>
               </BlockStack>
             </Card>
+
             <Card>
               <BlockStack gap="400">
                 <Text as="h2" variant="headingMd">Gérer les colis</Text>
@@ -32,15 +34,19 @@ export default function Index() {
                 </BlockStack>
                 <BlockStack gap="200">
                   <Text as="h3" variant="headingSm">Affecter les articles</Text>
-                  <Text as="p" tone="subdued">Utilisez les boutons <strong>−</strong> et <strong>+</strong> pour ajuster la quantité de chaque article dans chaque colis.</Text>
+                  <Text as="p" tone="subdued">Utilisez les boutons <strong>−</strong> et <strong>+</strong> pour ajuster la quantité de chaque article dans chaque colis. Un banner indique si des articles ne sont assignés dans aucun colis.</Text>
                   <InlineStack gap="200">
-                    <Badge tone="warning">2 restant(s)</Badge>
-                    <Text as="span" tone="subdued">→ des unités ne sont pas encore affectées</Text>
+                    <Badge tone="warning">Article non assigné</Badge>
+                    <Text as="span" tone="subdued">→ l'article n'est dans aucun colis</Text>
                   </InlineStack>
                   <InlineStack gap="200">
-                    <Badge tone="success">✓ Assigné</Badge>
-                    <Text as="span" tone="subdued">→ toutes les unités sont affectées</Text>
+                    <Badge tone="success">Tous les articles sont assignés</Badge>
+                    <Text as="span" tone="subdued">→ prêt à imprimer</Text>
                   </InlineStack>
+                </BlockStack>
+                <BlockStack gap="200">
+                  <Text as="h3" variant="headingSm">Poids par colis</Text>
+                  <Text as="p" tone="subdued">Le poids affiché sur chaque étiquette est calculé automatiquement : poids total ÷ nombre de colis. Vous pouvez créer autant de colis que nécessaire pour un même produit lourd.</Text>
                 </BlockStack>
                 <BlockStack gap="200">
                   <Text as="h3" variant="headingSm">Supprimer un colis</Text>
@@ -48,6 +54,7 @@ export default function Index() {
                 </BlockStack>
               </BlockStack>
             </Card>
+
             <Card>
               <BlockStack gap="400">
                 <Text as="h2" variant="headingMd">Limites DPD</Text>
@@ -62,18 +69,7 @@ export default function Index() {
                 </List>
               </BlockStack>
             </Card>
-          </BlockStack>
-        </Layout.Section>
-        <Layout.Section variant="oneThird">
-          <BlockStack gap="400">
-            <Card>
-              <BlockStack gap="200">
-                <Text as="h2" variant="headingMd">Informations</Text>
-                <Text as="p" tone="subdued">Application développée exclusivement pour Livedeco.com</Text>
-                <Text as="p" tone="subdued">Johan Vauche-Forot - contact@johanvf.pro</Text>
-                <Text as="p" tone="subdued">© 2026 - Tous droits réservés</Text>
-              </BlockStack>
-            </Card>
+
             <Card>
               <BlockStack gap="200">
                 <Text as="h2" variant="headingMd">En cas de problème</Text>
@@ -87,6 +83,16 @@ export default function Index() {
                 </Box>
               </BlockStack>
             </Card>
+
+            <Card>
+              <BlockStack gap="200">
+                <Text as="h2" variant="headingMd">Informations</Text>
+                <Text as="p" tone="subdued">Application développée exclusivement pour Livedeco.com</Text>
+                <Text as="p" tone="subdued">Johan Vauche-Forot - contact@johanvf.pro</Text>
+                <Text as="p" tone="subdued">© 2026 - Tous droits réservés</Text>
+              </BlockStack>
+            </Card>
+
           </BlockStack>
         </Layout.Section>
       </Layout>
