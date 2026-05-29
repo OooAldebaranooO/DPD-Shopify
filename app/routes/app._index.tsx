@@ -92,7 +92,7 @@ export default function Index() {
                   <Text as="p" tone="subdued">© 2026 - Tous droits réservés</Text>
                 </BlockStack>
                 <a href="https://www.johanvf.pro/" target="_blank" rel="noopener noreferrer">
-                    <img src="https://www.johanvf.pro/logo_jvfpro.png" alt="Logo" style={{ height: "60px", margin: "auto 0px" }} />
+                    <img src="https://www.johanvf.pro/logo_jvfpro.png" alt="Logo" style={{ height: "60px", margin: "20px 0px 0px 0px" }} />
                 </a>
               </InlineStack>
             </Card>
