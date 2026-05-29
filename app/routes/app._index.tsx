@@ -88,7 +88,7 @@ export default function Index() {
                 <BlockStack gap="200">
                   <Text as="h2" variant="headingMd">Informations</Text>
                   <Text as="p" tone="subdued">Application développée exclusivement pour Livedeco.com</Text>
-                  <Text as="p" tone="subdued">Johan Vauche-Forot — contact@johanvf.pro</Text>
+                  <Text as="p" tone="subdued">Johan Vauche-Forot - contact@johanvf.pro</Text>
                   <Text as="p" tone="subdued">© 2026 - Tous droits réservés</Text>
                 </BlockStack>
                 <a href="https://www.johanvf.pro/" target="_blank" rel="noopener noreferrer">
